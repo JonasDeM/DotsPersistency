@@ -1,7 +1,8 @@
 {
   "dependencies": {
-    "com.unity.burst": "1.2.3",
+    "com.unity.burst": "1.3.0-preview.7",
     "com.unity.collab-proxy": "1.2.16",
+    "com.unity.collections": "0.7.0-preview.2",
     "com.unity.dots.editor": "0.3.0-preview",
     "com.unity.entities": "file:C:/Workspace/Entities",
     "com.unity.ide.rider": "1.1.4",
@@ -48,7 +49,7 @@
   "lock": {
     "io.github.jonasdem.entityselection": {
       "revision": "HEAD",
-      "hash": "9935a6aaaaa591067232d27c2df2f9a06a2f558f"
+      "hash": "01d4e11f1708e27796bfad2fe87716aa846efab8"
     }
   }
 }

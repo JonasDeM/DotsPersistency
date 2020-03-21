@@ -1,12 +1,13 @@
 {
-    "name": "io.jonasden.dotspersistency.hybrid",
+    "name": "io.jonasdem.dotspersistency.hybrid",
     "references": [
         "io.jonasdem.dotspersistency",
         "Unity.Entities.Hybrid",
         "Unity.Entities",
         "Unity.Collections",
         "Unity.Transforms",
-        "Unity.Scenes.Hybrid"
+        "Unity.Scenes.Hybrid",
+        "Unity.Mathematics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

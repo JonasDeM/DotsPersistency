@@ -1,12 +1,12 @@
 {
-    "name": "io.jonasden.dotspersistency.editor",
+    "name": "io.jonasdem.dotspersistency.editor",
     "references": [
         "io.jonasdem.dotspersistency",
-        "io.jonasden.dotspersistency.hybrid",
         "Unity.Entities",
         "Unity.Entities.Hybrid",
         "Unity.Collections",
-        "Unity.Entities.Editor"
+        "Unity.Entities.Editor",
+        "io.jonasdem.dotspersistency.hybrid"
     ],
     "includePlatforms": [
         "Editor"

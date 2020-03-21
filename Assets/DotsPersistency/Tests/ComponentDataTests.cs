@@ -7,6 +7,8 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
+using UnityEngine;
+
 // ReSharper disable AccessToDisposedClosure
 
 namespace DotsPersistency.Tests
@@ -15,7 +17,7 @@ namespace DotsPersistency.Tests
     class ComponentDataTests : EcsTestsFixture
     {
         [Test]
-        public void TestReadComponentData([Values(0, 1, 2, 3, 60, 400)] int total)
+        public unsafe void TestReadComponentData([Values(0, 1, 2, 3, 60, 400)] int total)
         {
             // Preparation
             CreateEntities(total);
@@ -24,12 +26,9 @@ namespace DotsPersistency.Tests
             int entityAmount1 = entityAmount3 + (total%3 > 0 ? 1 : 0);
             int entityAmount2 = entityAmount3 + (total%3 > 1 ? 1 : 0);
             
-            NativeArray<EcsPersistingTestData> array1IntData = new NativeArray<EcsPersistingTestData>(entityAmount1, Allocator.TempJob);
-            NativeArray<bool> array1IntFound = new NativeArray<bool>( entityAmount1, Allocator.TempJob);
-            NativeArray<EcsPersistingFloatTestData2> array2FloatData = new NativeArray<EcsPersistingFloatTestData2>(entityAmount2, Allocator.TempJob);
-            NativeArray<bool> array2FloatFound = new NativeArray<bool>(entityAmount2, Allocator.TempJob);
-            NativeArray<EcsPersistingTestData5> array5IntData = new NativeArray<EcsPersistingTestData5>(entityAmount3, Allocator.TempJob);
-            NativeArray<bool> array5IntFound = new NativeArray<bool>(entityAmount3, Allocator.TempJob);
+            var array1IntData = new NativeArray<byte>(entityAmount1 * (UnsafeUtility.SizeOf<EcsPersistingTestData>() + PersistenceMetaData.SizeOfStruct), Allocator.TempJob);
+            var array2FloatData = new NativeArray<byte>(entityAmount2 * (UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() + PersistenceMetaData.SizeOfStruct), Allocator.TempJob);
+            var array5IntData = new NativeArray<byte>(entityAmount3 * (UnsafeUtility.SizeOf<EcsPersistingTestData5>() + PersistenceMetaData.SizeOfStruct), Allocator.TempJob);
 
             var query1 = m_Manager.CreateEntityQuery(typeof(EcsPersistingTestData), typeof(PersistenceState));
             var query2 = m_Manager.CreateEntityQuery(typeof(EcsPersistingFloatTestData2), typeof(PersistenceState));
@@ -40,7 +39,7 @@ namespace DotsPersistency.Tests
                 if (m_Manager.GetComponentData<PersistenceState>(entity).ArrayIndex < 3)
                 {
                     m_Manager.DestroyEntity(entity);
-                }
+                } 
             });
 
             // Action
@@ -49,8 +48,7 @@ namespace DotsPersistency.Tests
                 ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingTestData)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
                 PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                OutputData = array1IntData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingTestData>()),
-                OutputFound = array1IntFound
+                OutputData = array1IntData
             }.Schedule(query1);
             
             var job2 =new CopyComponentDataToByteArray()
@@ -58,17 +56,15 @@ namespace DotsPersistency.Tests
                 ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingFloatTestData2)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() ,
                 PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                OutputData = array2FloatData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>()),
-                OutputFound = array2FloatFound
+                OutputData = array2FloatData
             }.Schedule(query2);
             
             var job3 =new CopyComponentDataToByteArray()
             {
                 ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingTestData5)),
-                TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>() ,
+                TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
                 PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                OutputData = array5IntData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingTestData5>()),
-                OutputFound = array5IntFound
+                OutputData = array5IntData
             }.Schedule(query3);
             
             JobHandle.CombineDependencies(job1, job2, job3).Complete();
@@ -78,39 +74,70 @@ namespace DotsPersistency.Tests
             {
                 var originalData = m_Manager.GetComponentData<EcsPersistingTestData>(entity);
                 var persistenceState = m_Manager.GetComponentData<PersistenceState>(entity);
-                Assert.True(originalData.Equals(array1IntData[persistenceState.ArrayIndex]), "Data output by CopyComponentDataToByteArray does not match data on entity.");
+                int byteIndex = persistenceState.ArrayIndex * (UnsafeUtility.SizeOf<EcsPersistingTestData>() + PersistenceMetaData.SizeOfStruct) + PersistenceMetaData.SizeOfStruct;
+                var copiedData = *(EcsPersistingTestData*)((byte*)array1IntData.GetUnsafeReadOnlyPtr() + byteIndex);
+                Assert.True(originalData.Equals(copiedData), "Data output by CopyComponentDataToByteArray does not match data on entity.");
             });
             
             Entities.With(query2).ForEach(entity =>
             {
                 var originalData = m_Manager.GetComponentData<EcsPersistingFloatTestData2>(entity);
                 var persistenceState = m_Manager.GetComponentData<PersistenceState>(entity);
-                Assert.True(originalData.Equals(array2FloatData[persistenceState.ArrayIndex]), "Data output by CopyComponentDataToByteArray does not match data on entity.");
+                int byteIndex = persistenceState.ArrayIndex * (UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() + PersistenceMetaData.SizeOfStruct) + PersistenceMetaData.SizeOfStruct;
+                var copiedData = *(EcsPersistingFloatTestData2*)((byte*)array2FloatData.GetUnsafeReadOnlyPtr() + byteIndex);
+                Assert.True(originalData.Equals(copiedData), "Data output by CopyComponentDataToByteArray does not match data on entity.");
             });
             
             Entities.With(query3).ForEach(entity =>
             {
                 var originalData = m_Manager.GetComponentData<EcsPersistingTestData5>(entity);
                 var persistenceState = m_Manager.GetComponentData<PersistenceState>(entity);
-                Assert.True(originalData.Equals(array5IntData[persistenceState.ArrayIndex]), "Data output by CopyComponentDataToByteArray does not match data on entity.");
+                int byteIndex = persistenceState.ArrayIndex * (UnsafeUtility.SizeOf<EcsPersistingTestData5>() + PersistenceMetaData.SizeOfStruct) + PersistenceMetaData.SizeOfStruct;
+                var copiedData = *(EcsPersistingTestData5*)((byte*)array5IntData.GetUnsafeReadOnlyPtr() + byteIndex);
+                Assert.True(originalData.Equals(copiedData), "Data output by CopyComponentDataToByteArray does not match data on entity.");
             });
             
-            Assert.False(array1IntFound.Contains(false), "1 or more entities were not found for persisting");
-            Assert.False(array2FloatFound.Contains(false), "1 or more entities were not found for persisting");
-            Assert.True(array5IntFound.Contains(false) || array5IntFound.Length == 0, "All values in the found array were true but some entities did not exist.");
+            for (int i = 0; i < entityAmount1; i++)
+            {
+                var stride = (UnsafeUtility.SizeOf<EcsPersistingTestData>() + PersistenceMetaData.SizeOfStruct);
+                var metaData = UnsafeUtility.ReadArrayElementWithStride<PersistenceMetaData>(array1IntData.GetUnsafeReadOnlyPtr(), i, stride);
+                Assert.True(metaData.AmountFound == 1, "Entity was not found even though it existed.");
+                Assert.True(metaData.HasChanged, "Data changed but meta data didn't record the change.");
+            }
+            for (int i = 0; i < entityAmount2; i++)
+            {
+                var stride = (UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() + PersistenceMetaData.SizeOfStruct);
+                var metaData = UnsafeUtility.ReadArrayElementWithStride<PersistenceMetaData>(array2FloatData.GetUnsafeReadOnlyPtr(), i, stride);
+                Assert.True(metaData.AmountFound == 1, "Entity was not found even though it existed.");
+                Assert.True(metaData.HasChanged, "Data changed but meta data didn't record the change.");
+            }
+            int amount5Found = 0;
+            for (int i = 0; i < entityAmount3; i++)
+            {
+                var stride = (UnsafeUtility.SizeOf<EcsPersistingTestData5>() + PersistenceMetaData.SizeOfStruct);
+                var metaData = UnsafeUtility.ReadArrayElementWithStride<PersistenceMetaData>(array5IntData.GetUnsafeReadOnlyPtr(), i, stride);
+                Assert.True(metaData.AmountFound == 1 || metaData.AmountFound == 0, "Incorrect AmountFound on meta data.");
+                amount5Found += metaData.AmountFound;
+                if (i > 2)
+                {
+                    Assert.True(metaData.HasChanged, "Data changed but meta data didn't record the change.");
+                }
+                else
+                {
+                    Assert.False(metaData.HasChanged, "Data did not change but meta data recorded a change.");
+                }
+            }
+            Assert.True(amount5Found < entityAmount3 || amount5Found == 0, "More values were persisted than entities existed.");
 
             // Cleanup
             array1IntData.Dispose();
-            array1IntFound.Dispose();
             array2FloatData.Dispose();
-            array2FloatFound.Dispose();
             array5IntData.Dispose();
-            array5IntFound.Dispose();
             m_Manager.DestroyEntity(m_Manager.CreateEntityQuery(typeof(PersistenceState)));
         }
         
         [Test]
-        public void TestApplyStoredData([Values(0, 1, 2, 3, 60, 401)] int total)
+        public unsafe void TestApplyStoredData([Values(0, 1, 2, 3, 60, 401)] int total)
         {
             // Preparation
             CreateEntities(total);
@@ -119,12 +146,9 @@ namespace DotsPersistency.Tests
             int entityAmount1 = entityAmount3 + (total%3 > 0 ? 1 : 0);
             int entityAmount2 = entityAmount3 + (total%3 > 1 ? 1 : 0);
             
-            NativeArray<EcsPersistingTestData> array1IntData = new NativeArray<EcsPersistingTestData>(entityAmount1, Allocator.TempJob);
-            NativeArray<bool> array1IntFound = new NativeArray<bool>(Enumerable.Repeat(true, array1IntData.Length).ToArray(), Allocator.TempJob);
-            NativeArray<EcsPersistingFloatTestData2> array2FloatData = new NativeArray<EcsPersistingFloatTestData2>(entityAmount2, Allocator.TempJob);
-            NativeArray<bool> array2FloatFound = new NativeArray<bool>(Enumerable.Repeat(true, array2FloatData.Length).ToArray(), Allocator.TempJob);
-            NativeArray<EcsPersistingTestData5> array5IntData = new NativeArray<EcsPersistingTestData5>(entityAmount3, Allocator.TempJob);
-            NativeArray<bool> array5IntFound = new NativeArray<bool>(Enumerable.Repeat(true, array5IntData.Length).ToArray(), Allocator.TempJob);
+            var array1IntData = new NativeArray<byte>(entityAmount1 * (UnsafeUtility.SizeOf<EcsPersistingTestData>() + PersistenceMetaData.SizeOfStruct), Allocator.TempJob);
+            var array2FloatData = new NativeArray<byte>(entityAmount2 * (UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() + PersistenceMetaData.SizeOfStruct), Allocator.TempJob);
+            var array5IntData = new NativeArray<byte>(entityAmount3 * (UnsafeUtility.SizeOf<EcsPersistingTestData5>() + PersistenceMetaData.SizeOfStruct), Allocator.TempJob);
 
             var query1 = m_Manager.CreateEntityQuery(typeof(EcsPersistingTestData), typeof(PersistenceState));
             var query2 = m_Manager.CreateEntityQuery(typeof(EcsPersistingFloatTestData2), typeof(PersistenceState));
@@ -139,15 +163,24 @@ namespace DotsPersistency.Tests
                 }
                 else if (m_Manager.HasComponent<EcsPersistingTestData>(entity))
                 {
-                    array1IntData[index] = m_Manager.GetComponentData<EcsPersistingTestData>(entity).Modified();
+                    PersistenceMetaData* metaDataPtr = (PersistenceMetaData*)((byte*) array1IntData.GetUnsafePtr() + index * (UnsafeUtility.SizeOf<EcsPersistingTestData>() + PersistenceMetaData.SizeOfStruct));
+                    *metaDataPtr = new PersistenceMetaData(0, 1);
+                    EcsPersistingTestData* dataPtr = (EcsPersistingTestData*)(metaDataPtr + 1);
+                    *dataPtr = m_Manager.GetComponentData<EcsPersistingTestData>(entity).Modified();
                 }
                 else if (m_Manager.HasComponent<EcsPersistingFloatTestData2>(entity))
                 {
-                    array2FloatData[index] = m_Manager.GetComponentData<EcsPersistingFloatTestData2>(entity).Modified();
+                    PersistenceMetaData* metaDataPtr = (PersistenceMetaData*)((byte*) array2FloatData.GetUnsafePtr() + index * (UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() + PersistenceMetaData.SizeOfStruct));
+                    *metaDataPtr = new PersistenceMetaData(0, 1);
+                    EcsPersistingFloatTestData2* dataPtr = (EcsPersistingFloatTestData2*)(metaDataPtr + 1);
+                    *dataPtr = m_Manager.GetComponentData<EcsPersistingFloatTestData2>(entity).Modified();
                 }
                 else if (m_Manager.HasComponent<EcsPersistingTestData5>(entity))
                 {
-                    array5IntData[index] = m_Manager.GetComponentData<EcsPersistingTestData5>(entity).Modified();
+                    PersistenceMetaData* metaDataPtr = (PersistenceMetaData*)((byte*) array5IntData.GetUnsafePtr() + index * (UnsafeUtility.SizeOf<EcsPersistingTestData5>() + PersistenceMetaData.SizeOfStruct));
+                    *metaDataPtr = new PersistenceMetaData(0, 1);
+                    EcsPersistingTestData5* dataPtr = (EcsPersistingTestData5*)(metaDataPtr + 1);
+                    *dataPtr = m_Manager.GetComponentData<EcsPersistingTestData5>(entity).Modified();
                 }
             });
             int amount1 = query1.CalculateEntityCount();
@@ -160,7 +193,7 @@ namespace DotsPersistency.Tests
                 ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingTestData)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
                 PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                Input = array1IntData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingTestData>())
+                InputData = array1IntData
             }.Run(query1);
             
             new CopyByteArrayToComponentData()
@@ -168,7 +201,7 @@ namespace DotsPersistency.Tests
                 ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingFloatTestData2)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
                 PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                Input = array2FloatData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>())
+                InputData = array2FloatData
             }.Run(query2);
 
             new CopyByteArrayToComponentData()
@@ -176,7 +209,7 @@ namespace DotsPersistency.Tests
                 ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingTestData5)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
                 PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                Input = array5IntData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingTestData5>())
+                InputData = array5IntData
             }.Run(query3);
 
             // Check Results
@@ -230,8 +263,7 @@ namespace DotsPersistency.Tests
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
                     EntityType = m_Manager.GetArchetypeChunkEntityType(),
                     PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                    InputData = array1IntData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingTestData>()),
-                    InputFound = array1IntFound,
+                    InputData = array1IntData,
                     Ecb = cmds.ToConcurrent()
                 }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestData), typeof(PersistenceState)));
                 cmds.Playback(m_Manager);
@@ -245,8 +277,7 @@ namespace DotsPersistency.Tests
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
                     EntityType = m_Manager.GetArchetypeChunkEntityType(),
                     PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                    InputData = array2FloatData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>()),
-                    InputFound = array2FloatFound,
+                    InputData = array2FloatData,
                     Ecb = cmds.ToConcurrent()
                 }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestFloatData2), typeof(PersistenceState)));
                 cmds.Playback(m_Manager);
@@ -260,8 +291,7 @@ namespace DotsPersistency.Tests
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
                     EntityType = m_Manager.GetArchetypeChunkEntityType(),
                     PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
-                    InputData = array5IntData.Reinterpret<byte>(UnsafeUtility.SizeOf<EcsPersistingTestData5>()),
-                    InputFound = array5IntFound,
+                    InputData = array5IntData,
                     Ecb = cmds.ToConcurrent()
                 }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestData5), typeof(PersistenceState)));
                 cmds.Playback(m_Manager);
@@ -294,14 +324,80 @@ namespace DotsPersistency.Tests
 
             // Cleanup
             array1IntData.Dispose();
-            array1IntFound.Dispose();
             array2FloatData.Dispose();
-            array2FloatFound.Dispose();
             array5IntData.Dispose();
-            array5IntFound.Dispose();
             m_Manager.DestroyEntity(m_Manager.CreateEntityQuery(typeof(PersistenceState)));
         }
-        
+
+        [Test]
+        public void TestApplyAndReadEmptyData()
+        {
+            var entity1 = m_Manager.CreateEntity(typeof(PersistenceState), typeof(EmptyEcsPersistingTestData));
+            var entity2 = m_Manager.CreateEntity(typeof(PersistenceState));
+            var entity3 = m_Manager.CreateEntity(typeof(PersistenceState), typeof(EmptyEcsPersistingTestData));
+            
+            m_Manager.SetComponentData(entity1, new PersistenceState {ArrayIndex = 0});
+            m_Manager.SetComponentData(entity2, new PersistenceState {ArrayIndex = 1});
+            m_Manager.SetComponentData(entity3, new PersistenceState {ArrayIndex = 2});
+            
+            var query = m_Manager.CreateEntityQuery(typeof(EmptyEcsPersistingTestData), typeof(PersistenceState));
+            var excludeQuery = m_Manager.CreateEntityQuery(ComponentType.Exclude<EmptyEcsPersistingTestData>(), typeof(PersistenceState));
+            var data = new NativeArray<byte>(3 * PersistenceMetaData.SizeOfStruct, Allocator.TempJob);
+
+            // Action
+            var readJob = new UpdateMetaDataForComponentTag()
+            {
+                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                OutputData = data
+            }.Schedule(query);
+            readJob.Complete();
+
+            m_Manager.AddComponentData(entity2, new EmptyEcsPersistingTestData());
+            m_Manager.RemoveComponent<EmptyEcsPersistingTestData>(entity3);
+            
+            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
+            {
+                var removeJob = new RemoveComponent()
+                {
+                    TypeToRemove = typeof(EmptyEcsPersistingTestData),
+                    TypeSize = TypeManager.GetTypeInfo<EmptyEcsPersistingTestData>().ElementSize,
+                    PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                    InputData = data,
+                    EntityType = m_Manager.GetArchetypeChunkEntityType(),
+                    Ecb = cmds.ToConcurrent()
+                }.Schedule(query);
+                removeJob.Complete();
+                cmds.Playback(m_Manager);
+            }
+            
+            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
+            {
+                var addJob = new AddMissingComponent()
+                {
+                    ComponentType = typeof(EmptyEcsPersistingTestData),
+                    TypeSize = TypeManager.GetTypeInfo<EmptyEcsPersistingTestData>().ElementSize,
+                    PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                    InputData = data,
+                    EntityType = m_Manager.GetArchetypeChunkEntityType(),
+                    Ecb = cmds.ToConcurrent()
+                }.Schedule(excludeQuery);
+                addJob.Complete();
+                cmds.Playback(m_Manager);
+            }
+            
+            // Check Results
+            Assert.True(m_Manager.HasComponent<EmptyEcsPersistingTestData>(entity1), "The entity does not have the component EmptyEcsPersistingTestData BUT the entity did have the component at the time of persisting.");
+            Assert.False(m_Manager.HasComponent<EmptyEcsPersistingTestData>(entity2), "The entity has the component EmptyEcsPersistingTestData BUT the entity did not have the component at the time of persisting.");
+            Assert.True(m_Manager.HasComponent<EmptyEcsPersistingTestData>(entity3), "The entity does not have the component EmptyEcsPersistingTestData BUT the entity did have the component at the time of persisting.");
+            
+            // Cleanup
+            data.Dispose();
+        }
+
+        struct EmptyEcsPersistingTestData : IComponentData
+        {
+            
+        }
         
         struct EcsPersistingTestData : IComponentData, IEquatable<EcsTestData>, IEquatable<EcsPersistingTestData>
         {

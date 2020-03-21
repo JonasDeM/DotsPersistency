@@ -56,8 +56,10 @@ namespace DotsPersistency.Editor
         [Serializable]
         private struct AssemblyName
         {
+#pragma warning disable 649
             [UsedImplicitly]
             public string name;
+#pragma warning restore 649
         }
         public static void UpdateRuntimeVersion()
         {
