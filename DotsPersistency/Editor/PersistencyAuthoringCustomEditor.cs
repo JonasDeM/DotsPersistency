@@ -18,6 +18,7 @@ namespace DotsPersistency.Editor
 
         private void OnEnable()
         {
+            PersistableTypesInfo.GetInstance();
             _cachedTypes = new List<ulong>(PersistableTypesInfo.GetOrCreateRuntimeVersion().StableTypeHashes);
             _cachedTypes.Add(0);
         }

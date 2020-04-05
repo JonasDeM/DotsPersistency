@@ -165,8 +165,9 @@ namespace DotsPersistency
                         MaxElements = maxElements,
                         Offset = currentOffset
                     };
-                    sizePerEntity += typeInfo.ElementSize * maxElements + sizeof(ushort); // PersistenceMetaData is one ushort
-                    currentOffset += sizePerEntity * amountEntities;
+                    int sizeForComponent = (typeInfo.ElementSize * maxElements) + sizeof(ushort); // PersistenceMetaData is one ushort
+                    sizePerEntity += sizeForComponent; 
+                    currentOffset += sizeForComponent * amountEntities;
                 }
 
                 blobAssetReference = blobBuilder.CreateBlobAssetReference<BlobArray<PersistedTypeInfo>>(Allocator.Persistent);

@@ -1,0 +1,16 @@
+{
+  "name": "io.github.jonasdem.dotspersistency",
+  "version": "0.3.0",
+  "displayName": "DOTS Persistency",
+  "description": "This package makes it easy to save the state of your entities & apply it back again later on.",
+  "unity": "2019.3",
+  "author": {
+    "name": "Jonas De Maeseneer",
+    "email": "jonas.de.maeseneer@outlook.com",
+    "url": "https://jonasdem.github.io/"
+  },
+  "dependencies": {
+    "com.unity.entities": "0.8.0-preview.8",
+    "com.unity.rendering.hybrid": "0.4.0-preview.8"
+  }
+}
