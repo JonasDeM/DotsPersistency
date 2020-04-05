@@ -12,6 +12,7 @@ namespace DotsPersistency
     public class PersistentDataStorage : IDisposable
     {
         private Dictionary<SceneSection, PersistentDataContainer> _sceneToData;
+        private IPersistencySerializer _serializer = new DefaultPersistencySerializer();
 
         public PersistentDataStorage()
         {
@@ -62,6 +63,24 @@ namespace DotsPersistency
             // Can do a web request & return false once you got the data
             return false;
         }
+
+        public void RegisterCustomSerializer(IPersistencySerializer serializer)
+        {
+            _serializer = serializer;
+        }
+
+        public void SaveAllToDisk()
+        {
+            foreach (var container in _sceneToData.Values)
+            {
+                _serializer.WriteContainerData(container);
+            }
+        }
+        
+        public void ReadContainerDataFromDisk(SceneSection sceneSection)
+        {
+            _serializer.ReadContainerData(_sceneToData[sceneSection]);
+        }
     }
     
     public struct PersistentDataContainer : IDisposable
@@ -102,6 +121,11 @@ namespace DotsPersistency
         public NativeArray<byte> GetRawData()
         {
             return _data;
+        }
+        
+        public NativeArray<PersistenceArchetype> GetRawPersistenceArchetypeArray()
+        {
+            return _persistenceArchetypes;
         }
             
         public PersistentDataContainer GetCopy()

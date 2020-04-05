@@ -64,16 +64,11 @@ namespace DotsPersistency
                     ScheduleApplyToSceneSection(inputDependencies, sceneSection, PersistentDataStorage.GetExistingContainer(sceneSection), _ecbSystem));
             }
             _ecbSystem.AddJobHandleForProducer(jobHandle);
+            
+            _persistRequests.Clear();
+            _applyRequests.Clear();
 
-            var persistRequests = _persistRequests;
-            var applyRequests = _applyRequests;
-            var clearJobHandle = Job.WithBurst().WithCode(() =>
-            {
-                persistRequests.Clear();
-                applyRequests.Clear();
-            }).Schedule(jobHandle);
-
-            return JobHandle.CombineDependencies(jobHandle, clearJobHandle);
+            return jobHandle;
         }
     }
 }

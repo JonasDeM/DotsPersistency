@@ -12,4 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 75b09d9b21e9c9f48abc5305570c127c, type: 3}
   m_Name: UserDefinedRuntimePersistableTypes
   m_EditorClassIdentifier: 
-  _stableTypeHashes: 9a24c70e6bb9be05eeefcd91c445b220179b4a0250dc0771
+  _stableTypeHashes: 9a24c70e6bb9be05eeefcd91c445b220179b4a0250dc0771935b1651136d43bc

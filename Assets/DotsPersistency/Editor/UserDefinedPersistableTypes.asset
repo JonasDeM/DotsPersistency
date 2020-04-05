@@ -16,6 +16,8 @@ MonoBehaviour:
   - Unity.Transforms.Translation
   - Unity.Transforms.Rotation
   - Unity.Entities.Disabled
+  - MyBufferData1
   Assemblies:
   - {fileID: 5897886265953266890, guid: a5baed0c9693541a5bd947d336ec7659, type: 3}
   - {fileID: 5897886265953266890, guid: 734d92eba21c94caba915361bd5ac177, type: 3}
+  - {fileID: 5897886265953266890, guid: e6bccdeaf1e297d4caccca96a8166ffe, type: 3}

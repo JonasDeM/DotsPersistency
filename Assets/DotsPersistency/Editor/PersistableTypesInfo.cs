@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using JetBrains.Annotations;
 using Unity.Entities;
@@ -89,9 +90,20 @@ namespace DotsPersistency.Editor
                 {
                     Debug.LogWarning($"PersistableTypesInfo contains \"{fullTypeName}\", but type could not be found");
                 }
-                else
+                else if (!(typeof(IBufferElementData).IsAssignableFrom(type) 
+                         || typeof(IComponentData).IsAssignableFrom(type) 
+                         || typeof(ISystemStateComponentData).IsAssignableFrom(type)
+                         || typeof(ISystemStateBufferElementData).IsAssignableFrom(type)))
                 {
-                    runtimeVersion.StableTypeHashes.Add(TypeManager.GetTypeInfo(TypeManager.GetTypeIndex(type)).StableTypeHash);
+                    Debug.LogWarning($"PersistableTypesInfo contains \"{fullTypeName}\", but that type does not inherit from IComponentData or IBufferElementData!");
+                }
+                else 
+                {
+                    var stableHash = TypeManager.GetTypeInfo(TypeManager.GetTypeIndex(type)).StableTypeHash;
+                    if(!runtimeVersion.StableTypeHashes.Contains(stableHash))
+                    {
+                        runtimeVersion.StableTypeHashes.Add(stableHash);
+                    }
                 }
             }
             

@@ -93,7 +93,6 @@ namespace DotsPersistency
             if (PersistentDataStorage.HasContainer(sceneSection))
             {
                 var dataContainer = PersistentDataStorage.GetExistingContainer(sceneSection);
-                Debug.Assert(typeHashes.Count == dataContainer.Count);
                 
                 for (int i = 0; i < dataContainer.Count; i++)
                 {
@@ -136,7 +135,6 @@ namespace DotsPersistency
                 _beginFrameSystem.RequestPersist(sceneSection);
                 archetypes.Dispose();
             }
-
         }
 
         internal static BlobAssetReference<BlobArray<PersistedTypeInfo>> BuildTypeInfoBlobAsset(FixedList128<ulong> stableTypeHashes, int amountEntities, out int sizePerEntity)

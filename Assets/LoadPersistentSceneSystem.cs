@@ -40,6 +40,28 @@ public class LoadPersistentSceneSystem : ComponentSystem
             {
                 r.Value = quaternion.Euler(0,90,0);
             });
+            
+            Entities.ForEach((DynamicBuffer<MyBufferData1> bufferData1) =>
+            {
+                bufferData1.Add(new MyBufferData1() {Data = 3});
+            });
+        }
+        
+        if (Input.GetKeyDown(KeyCode.S))
+        {
+            var storage = World.GetOrCreateSystem<BeginFramePersistentDataSystem>().PersistentDataStorage;
+            storage.SaveAllToDisk();
+        }
+        
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            var storage = World.GetOrCreateSystem<BeginFramePersistentDataSystem>().PersistentDataStorage;
+            Entities.ForEach((Entity e, ref SceneSectionData sceneSectionData) =>
+            {
+                var sceneSection = new SceneSection {Section = sceneSectionData.SubSectionIndex, SceneGUID = sceneSectionData.SceneGUID};
+                storage.ReadContainerDataFromDisk(sceneSection);
+                World.GetOrCreateSystem<BeginFramePersistentDataSystem>().RequestApply(sceneSection);
+            });
         }
 
         if (Input.GetKeyDown(KeyCode.D))
