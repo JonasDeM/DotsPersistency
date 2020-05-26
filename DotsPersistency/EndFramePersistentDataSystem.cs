@@ -25,9 +25,9 @@ namespace DotsPersistency
             RequireForUpdate(_unloadStreamRequests);
         }
     
-        protected override JobHandle OnUpdate(JobHandle inputDependencies)
+        protected override void OnUpdate()
         {
-            JobHandle allPersistJobs = inputDependencies;
+            JobHandle inputDependencies = Dependency;
 
             var sceneSectionsToUnload = _unloadStreamRequests.ToComponentDataArray<SceneSectionData>(Allocator.TempJob);
             foreach (SceneSectionData sceneSectionData in sceneSectionsToUnload)
@@ -38,17 +38,15 @@ namespace DotsPersistency
                     SceneGUID = sceneSectionData.SceneGUID
                 };
                 
-                allPersistJobs = JobHandle.CombineDependencies(
-                    allPersistJobs,
+                Dependency = JobHandle.CombineDependencies(
+                    Dependency,
                     ScheduleCopyToPersistentDataContainer(inputDependencies, sceneSectionToPersist, PersistentDataStorage.GetExistingContainer(sceneSectionToPersist)));
             }
             sceneSectionsToUnload.Dispose();
             
             // this will trigger the actual unload
             _ecbSystem.CreateCommandBuffer().RemoveComponent<RequestSceneLoaded>(_unloadStreamRequests);
-            //_ecbSystem.AddJobHandleForProducer(allPersistJobs);
-
-            return allPersistJobs;
+            // _ecbSystem.AddJobHandleForProducer(allPersistJobs);
         }
     }
 }

@@ -5,12 +5,12 @@ namespace DotsPersistency.Containers
 {
     public static class ContainerCodeGen 
     {
-        //[MenuItem("Code Gen/Containers/Generate Fixed Arrays")]
+        // [MenuItem("Code Gen/Containers/Generate Fixed Arrays")]
         public static void Generate()
         {
             const int amount = 8;
             
-            using (StreamWriter streamWriter = new StreamWriter("Assets/DotsPersistency/Containers/FixedArray.gen.cs"))
+            using (StreamWriter streamWriter = new StreamWriter("C:/Workspace/DotsPersistency/DotsPersistency/Containers/FixedArray.gen.cs"))
             {
                 streamWriter.WriteLine(@"// Generated File (Author: Jonas De Maeseneer)
 
@@ -37,11 +37,10 @@ namespace DotsPersistency.Containers");
     [Serializable]
     public struct FixedArray{0}<T> where T : struct
     {{
+        [SerializeField]
         private FixedArray{1}<T> _value0;
-        // ""value is never used\"" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray{1}<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 

@@ -8,7 +8,7 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency.Hybrid
 {
-    [ConverterVersion("Jonas", 3)]
+    [ConverterVersion("Jonas", 4)]
     [UpdateInGroup(typeof(GameObjectDeclareReferencedObjectsGroup))]
     public class PersistencyConversionReferenceSystem : GameObjectConversionSystem
     {
@@ -28,6 +28,7 @@ namespace DotsPersistency.Hybrid
         }
     }
     
+    [ConverterVersion("Jonas", 4)]
     [UpdateInGroup(typeof(GameObjectAfterConversionGroup))]
     public class MyPersistencyConversionSystem : PersistencyConversionSystem
     {
@@ -37,6 +38,7 @@ namespace DotsPersistency.Hybrid
         }
     }
 
+    [ConverterVersion("Jonas", 4)]
     [UpdateInGroup(typeof(GameObjectAfterConversionGroup))]
     public abstract class PersistencyConversionSystem : GameObjectConversionSystem
     {

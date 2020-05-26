@@ -49,26 +49,24 @@ namespace DotsPersistency
             _applyRequests.Add(sceneSection);
         }
 
-        protected override JobHandle OnUpdate(JobHandle inputDependencies)
+        protected override void OnUpdate()
         {
-            JobHandle jobHandle = inputDependencies;
+            JobHandle inputDependencies = Dependency;
             
             foreach (var sceneSection in _persistRequests)
             {
-                jobHandle = JobHandle.CombineDependencies(jobHandle,
+                Dependency = JobHandle.CombineDependencies(Dependency,
                     ScheduleCopyToPersistentDataContainer(inputDependencies, sceneSection, PersistentDataStorage.GetExistingContainer(sceneSection)));
             }
             foreach (var sceneSection in _applyRequests)
             {
-                jobHandle = JobHandle.CombineDependencies(jobHandle,
+                Dependency = JobHandle.CombineDependencies(Dependency,
                     ScheduleApplyToSceneSection(inputDependencies, sceneSection, PersistentDataStorage.GetExistingContainer(sceneSection), _ecbSystem));
             }
-            _ecbSystem.AddJobHandleForProducer(jobHandle);
+            _ecbSystem.AddJobHandleForProducer(Dependency);
             
             _persistRequests.Clear();
             _applyRequests.Clear();
-
-            return jobHandle;
         }
     }
 }

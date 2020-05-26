@@ -4,7 +4,7 @@ using Unity.Jobs;
 
 namespace DotsPersistency
 {
-    public abstract class PersistencyJobSystem : JobComponentSystem
+    public abstract class PersistencyJobSystem : SystemBase
     {
         private Dictionary<ComponentType, EntityQuery> _queryCache = new Dictionary<ComponentType, EntityQuery>(32, new CustomComparer());
         

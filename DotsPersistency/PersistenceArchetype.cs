@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using System;
+using DotsPersistency.Containers;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
@@ -32,9 +33,34 @@ namespace DotsPersistency
         }
     }
     
+    [Serializable]
     public struct TypeHashesToPersist : ISharedComponentData
     {
-        public FixedList128<ulong> TypeHashList; // can store 15 type hashes
+        // A unity bug makes me have to use this temporary workaround instead of just using FixedList as a field
+        // https://fogbugz.unity3d.com/default.asp?1250205_h3i38krgoh6ibpc9
+        public FixedList128<ulong> TypeHashList
+        {
+            get
+            {
+                FixedList128<ulong> retVal = new FixedList128<ulong>();
+                for (int i = 0; i < _length; i++)
+                {
+                    retVal.Add(_array16[i]);
+                }
+                return retVal;
+            }
+            set
+            {
+                _length = (short)value.Length;
+                for (int i = 0; i < value.Length; i++)
+                {
+                    _array16[i] = value[i];
+                }
+            }
+        } // can store 15 type hashes
+
+        [SerializeField] private short _length;
+        [SerializeField] private FixedArray16<ulong> _array16;
     }
 
     public struct PersistedTypeInfo

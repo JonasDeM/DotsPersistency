@@ -9,11 +9,10 @@ namespace DotsPersistency.Containers
     public struct FixedArray2<T>
         where T : struct
     {
+        [SerializeField]
         private T _value0;
-        // "value is never used" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private T _value1;
-#pragma warning restore 0414
 
         public int Length => 2;
 

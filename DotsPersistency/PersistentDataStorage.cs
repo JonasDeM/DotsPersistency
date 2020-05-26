@@ -128,21 +128,25 @@ namespace DotsPersistency
             return _persistenceArchetypes;
         }
             
+        // bug todo incorrect implementation
         public PersistentDataContainer GetCopy()
         {
-            PersistentDataContainer copy = this;
-            _data.CopyTo(copy._data);
-            return copy;
+            throw new NotImplementedException();
+            //PersistentDataContainer copy = this;
+            //_data.CopyTo(copy._data);
+            //return copy;
         }
 
         public void Dispose()
         {
             _data.Dispose();
+            _persistenceArchetypes.Dispose();
         }
             
         public void Dispose(JobHandle jobHandle)
         {
             _data.Dispose(jobHandle);
+            _persistenceArchetypes.Dispose(jobHandle);
         }
     }
 

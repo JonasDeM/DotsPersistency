@@ -11,11 +11,10 @@ namespace DotsPersistency.Containers
     [Serializable]
     public struct FixedArray4<T> where T : struct
     {
+        [SerializeField]
         private FixedArray2<T> _value0;
-        // "value is never used\" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray2<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 
@@ -60,11 +59,10 @@ namespace DotsPersistency.Containers
     [Serializable]
     public struct FixedArray8<T> where T : struct
     {
+        [SerializeField]
         private FixedArray4<T> _value0;
-        // "value is never used\" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray4<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 
@@ -109,11 +107,10 @@ namespace DotsPersistency.Containers
     [Serializable]
     public struct FixedArray16<T> where T : struct
     {
+        [SerializeField]
         private FixedArray8<T> _value0;
-        // "value is never used\" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray8<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 
@@ -158,11 +155,10 @@ namespace DotsPersistency.Containers
     [Serializable]
     public struct FixedArray32<T> where T : struct
     {
+        [SerializeField]
         private FixedArray16<T> _value0;
-        // "value is never used\" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray16<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 
@@ -207,11 +203,10 @@ namespace DotsPersistency.Containers
     [Serializable]
     public struct FixedArray64<T> where T : struct
     {
+        [SerializeField]
         private FixedArray32<T> _value0;
-        // "value is never used\" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray32<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 
@@ -256,11 +251,10 @@ namespace DotsPersistency.Containers
     [Serializable]
     public struct FixedArray128<T> where T : struct
     {
+        [SerializeField]
         private FixedArray64<T> _value0;
-        // "value is never used\" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray64<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 
@@ -305,11 +299,10 @@ namespace DotsPersistency.Containers
     [Serializable]
     public struct FixedArray256<T> where T : struct
     {
+        [SerializeField]
         private FixedArray128<T> _value0;
-        // "value is never used\" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray128<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 
@@ -354,11 +347,10 @@ namespace DotsPersistency.Containers
     [Serializable]
     public struct FixedArray512<T> where T : struct
     {
+        [SerializeField]
         private FixedArray256<T> _value0;
-        // "value is never used\" It can be retrieved via the unsafe indexer.
-#pragma warning disable 0414
+        [SerializeField]
         private FixedArray256<T> _value1;
-#pragma warning restore 0414
 
         public int Length => _value0.Length * 2;
 

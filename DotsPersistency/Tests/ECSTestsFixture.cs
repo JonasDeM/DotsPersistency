@@ -57,7 +57,7 @@ namespace DotsPersistency.Tests
         [TearDown]
         public virtual void TearDown()
         {
-            if (m_Manager != null && m_Manager.IsCreated)
+            if (m_Manager != default && m_Manager.IsCreated)
             {
                 // Clean up systems before calling CheckInternalConsistency because we might have filters etc
                 // holding on SharedComponentData making checks fail
@@ -73,7 +73,7 @@ namespace DotsPersistency.Tests
 
                 World.DefaultGameObjectInjectionWorld = m_PreviousWorld;
                 m_PreviousWorld = null;
-                m_Manager = null;
+                m_Manager = default;
             }
         }
         

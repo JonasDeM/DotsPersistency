@@ -5,6 +5,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Scenes;
+using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 namespace DotsPersistency
@@ -12,7 +13,7 @@ namespace DotsPersistency
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateAfter(typeof(SceneSystemGroup))]
     [UpdateBefore(typeof(BeginFramePersistentDataSystem))]
-    public class PersistenceInitializationSystem : ComponentSystem
+    public class PersistenceInitializationSystem : SystemBase
     {
         private EntityQuery _initEntitiesQuery;
         private EntityQuery _sceneLoadedCheckQuery;
@@ -42,7 +43,7 @@ namespace DotsPersistency
             EntityCommandBuffer ecb = _ecbSystem.CreateCommandBuffer();
             NativeList<SceneSection> sceneSectionsToInit = new NativeList<SceneSection>(2, Allocator.Temp);
             
-            Entities.ForEach((Entity entity, ref RequestPersistentSceneLoaded requestInfo, ref SceneSectionData sceneSectionData) =>
+            Entities.ForEach((Entity entity, ref RequestPersistentSceneLoaded requestInfo, in SceneSectionData sceneSectionData) =>
             {
                 SceneSection sceneSection = new SceneSection
                 {
@@ -76,16 +77,24 @@ namespace DotsPersistency
                     });
                     requestInfo.CurrentLoadingStage = RequestPersistentSceneLoaded.Stage.WaitingForSceneLoad;
                 }
-            });
+            }).WithoutBurst().Run();
             
             var uniqueSharedCompData = new List<TypeHashesToPersist>();
             EntityManager.GetAllUniqueSharedComponentData(uniqueSharedCompData);
             uniqueSharedCompData.Remove(default);
 
+            foreach (var typeHashesToPersist in uniqueSharedCompData)
+            {
+                Debug.Log(typeHashesToPersist.TypeHashList.Length);
+            }
+
+            EntityCommandBuffer immediateStructuralChanges = new EntityCommandBuffer(Allocator.TempJob, PlaybackPolicy.SinglePlayback);
             foreach (var sceneSection in sceneSectionsToInit)
             {
-                InitSceneSection(sceneSection, uniqueSharedCompData, PostUpdateCommands);
+                InitSceneSection(sceneSection, uniqueSharedCompData, immediateStructuralChanges);
             }
+            immediateStructuralChanges.Playback(EntityManager);
+            immediateStructuralChanges.Dispose();
         }
 
         private void InitSceneSection(SceneSection sceneSection, List<TypeHashesToPersist> typeHashes, EntityCommandBuffer ecb)
