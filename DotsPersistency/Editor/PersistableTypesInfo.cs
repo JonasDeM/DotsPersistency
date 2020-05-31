@@ -66,6 +66,12 @@ namespace DotsPersistency.Editor
         {
             var instance = PersistableTypesInfo.GetInstance();
             var runtimeVersion = GetOrCreateRuntimeVersion();
+            runtimeVersion.StableTypeHashes.Clear();
+            runtimeVersion.FullTypeNames.Clear();
+            
+            instance.FullTypeNames.Sort();
+            instance.Assemblies.Sort((asset1, asset2) => String.CompareOrdinal(asset1.name, asset2.name));
+            EditorUtility.SetDirty(instance);
             
             foreach (var fullTypeName in instance.FullTypeNames)
             {
@@ -103,6 +109,7 @@ namespace DotsPersistency.Editor
                     if(!runtimeVersion.StableTypeHashes.Contains(stableHash))
                     {
                         runtimeVersion.StableTypeHashes.Add(stableHash);
+                        runtimeVersion.FullTypeNames.Add(fullTypeName);
                     }
                 }
             }

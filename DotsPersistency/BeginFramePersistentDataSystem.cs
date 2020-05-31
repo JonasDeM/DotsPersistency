@@ -37,7 +37,7 @@ namespace DotsPersistency
             _applyRequests.Dispose();
         }
 
-        public void RequestPersist(SceneSection sceneSection)
+        internal void RequestPersist(SceneSection sceneSection)
         {
             Debug.Assert(!_persistRequests.Contains(sceneSection), "Double request to persist data!");
             _persistRequests.Add(sceneSection);
@@ -47,6 +47,11 @@ namespace DotsPersistency
         {
             Debug.Assert(!_applyRequests.Contains(sceneSection), "Double request to apply data!");
             _applyRequests.Add(sceneSection);
+        }
+        
+        public void RequestApply(PersistentDataContainer dataContainer)
+        {
+            Debug.LogWarning("Implement me");
         }
 
         protected override void OnUpdate()

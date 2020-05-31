@@ -46,7 +46,6 @@ namespace DotsPersistency
             return _sceneToData[sceneSection];
         }
         
-        // you need to pass a persistent array, this function takes ownership
         internal void CreateContainer(SceneSection sceneSection, NativeArray<PersistenceArchetype> archetypes)
         {
             _sceneToData.Add(sceneSection, new PersistentDataContainer(sceneSection, archetypes, Allocator.Persistent));

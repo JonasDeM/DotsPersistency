@@ -14,33 +14,35 @@ namespace DotsPersistency.Editor
     [CustomEditor(typeof(PersistencyAuthoring)), CanEditMultipleObjects]
     public class PersistencyBehaviourEditor : UnityEditor.Editor
     {
-        List<ulong> _cachedTypes;
+        List<string> _cachedFullTypeNames;
+        private RuntimePersistableTypesInfo _runTimeTypeInfos;
 
         private void OnEnable()
         {
             PersistableTypesInfo.GetInstance();
-            _cachedTypes = new List<ulong>(PersistableTypesInfo.GetOrCreateRuntimeVersion().StableTypeHashes);
-            _cachedTypes.Add(0);
+            _runTimeTypeInfos = PersistableTypesInfo.GetOrCreateRuntimeVersion();
+            _cachedFullTypeNames = new List<string>(_runTimeTypeInfos.FullTypeNames);
+            _cachedFullTypeNames.Add("");
         }
 
         public override void OnInspectorGUI()
         {
             var singleTarget = ((PersistencyAuthoring) target);
             string index = singleTarget.CalculateArrayIndex().ToString();
-            string hashAmount = singleTarget.TypesToPersistHashes.Count.ToString();
+            string hashAmount = singleTarget.FullTypeNamesToPersist.Count.ToString();
             if (targets.Length != 1)
             {
                 index = "--Mixed Values--";
             }
 
             bool sameHashes = true;
-            List<ulong> typeHashes = singleTarget.TypesToPersistHashes;
+            List<string> fullTypeNames = singleTarget.FullTypeNamesToPersist;
             foreach (Object o in targets)
             {
                 var persistenceAuthoring = (PersistencyAuthoring) o;
 
                 // ReSharper disable once PossibleNullReferenceException
-                if (typeHashes.Count != persistenceAuthoring.TypesToPersistHashes.Count || typeHashes.Except(persistenceAuthoring.TypesToPersistHashes).Any())
+                if (fullTypeNames.Count != persistenceAuthoring.FullTypeNamesToPersist.Count || fullTypeNames.Except(persistenceAuthoring.FullTypeNamesToPersist).Any())
                 {
                     sameHashes = false;
                     break;
@@ -54,21 +56,21 @@ namespace DotsPersistency.Editor
 
             if (sameHashes)
             {
-                for (int i = 0; i < singleTarget.TypesToPersistHashes.Count; i++)
+                for (int i = 0; i < singleTarget.FullTypeNamesToPersist.Count; i++)
                 {
-                    int selectedIndex = _cachedTypes.FindIndex(hash => hash == singleTarget.TypesToPersistHashes[i]);
+                    int selectedIndex = _cachedFullTypeNames.FindIndex(s => s == singleTarget.FullTypeNamesToPersist[i]);
 
                     EditorGUILayout.BeginHorizontal();
                     int newSelectedIndex = EditorGUILayout.Popup($"Type {i}", selectedIndex,
-                        _cachedTypes.Select((hash =>
-                            hash == 0 ? "None" : ComponentType.FromTypeIndex(TypeManager.GetTypeIndexFromStableTypeHash(hash)).ToString())).ToArray());
+                        _cachedFullTypeNames.Select((s =>
+                            string.IsNullOrEmpty(s) ? "None" : ComponentType.FromTypeIndex(TypeManager.GetTypeIndexFromStableTypeHash(_runTimeTypeInfos.GetStableTypeHashFromFullTypeName(s))).ToString())).ToArray());
 
                     if (GUILayout.Button("-", GUILayout.Width(18)))
                     {
                         foreach (var o in targets)
                         {
                             var persistenceAuthoring = (PersistencyAuthoring) o;
-                            persistenceAuthoring.TypesToPersistHashes.RemoveAt(i);
+                            persistenceAuthoring.FullTypeNamesToPersist.RemoveAt(i);
                             EditorUtility.SetDirty(persistenceAuthoring);
                         }
                     }
@@ -79,9 +81,9 @@ namespace DotsPersistency.Editor
                         foreach (var o in targets)
                         {
                             var persistenceAuthoring = (PersistencyAuthoring) o;
-                            persistenceAuthoring.TypesToPersistHashes[i] = _cachedTypes[newSelectedIndex];
-                            persistenceAuthoring.TypesToPersistHashes = persistenceAuthoring.TypesToPersistHashes.Distinct().ToList();
-                            persistenceAuthoring.TypesToPersistHashes.Sort(new TypeComparer());
+                            persistenceAuthoring.FullTypeNamesToPersist[i] = _cachedFullTypeNames[newSelectedIndex];
+                            persistenceAuthoring.FullTypeNamesToPersist = persistenceAuthoring.FullTypeNamesToPersist.Distinct().ToList();
+                            persistenceAuthoring.FullTypeNamesToPersist.Sort();
                             EditorUtility.SetDirty(persistenceAuthoring);
                         }
                     }
@@ -94,14 +96,14 @@ namespace DotsPersistency.Editor
                 GUI.enabled = true;
             }
             
-            GUI.enabled = !singleTarget.TypesToPersistHashes.Contains(0);
+            GUI.enabled = !singleTarget.FullTypeNamesToPersist.Contains("");
             string buttonText = GUI.enabled ? "Add" : "Add (You still have a \"None\" Value)";
             if (sameHashes && GUILayout.Button(buttonText))
             {
                 foreach (var o in targets)
                 {
                     var persistenceAuthoring = (PersistencyAuthoring) o;
-                    persistenceAuthoring.TypesToPersistHashes.Add(0);
+                    persistenceAuthoring.FullTypeNamesToPersist.Add("");
                     EditorUtility.SetDirty(persistenceAuthoring);
                 }
             }
@@ -112,31 +114,9 @@ namespace DotsPersistency.Editor
                 foreach (var o in targets)
                 {
                     var persistenceAuthoring = (PersistencyAuthoring) o;
-                    persistenceAuthoring.TypesToPersistHashes.Clear();
+                    persistenceAuthoring.FullTypeNamesToPersist.Clear();
                     EditorUtility.SetDirty(persistenceAuthoring);
                 }
-            }
-        }
-
-        struct TypeComparer : IComparer<ulong>
-        {
-            public int Compare(ulong x, ulong y)
-            {
-                if (x == 0)
-                {
-                    return 1;
-                }
-                
-                bool xIsBuffer = TypeManager.IsBuffer(TypeManager.GetTypeIndexFromStableTypeHash(x));
-                bool yIsBuffer = TypeManager.IsBuffer(TypeManager.GetTypeIndexFromStableTypeHash(y));
-                if (xIsBuffer != yIsBuffer)
-                {
-                    if (xIsBuffer)
-                        return 1;
-                    return -1;
-                }
-                
-                return (int)(x - y);
             }
         }
     }

@@ -83,11 +83,6 @@ namespace DotsPersistency
             EntityManager.GetAllUniqueSharedComponentData(uniqueSharedCompData);
             uniqueSharedCompData.Remove(default);
 
-            foreach (var typeHashesToPersist in uniqueSharedCompData)
-            {
-                Debug.Log(typeHashesToPersist.TypeHashList.Length);
-            }
-
             EntityCommandBuffer immediateStructuralChanges = new EntityCommandBuffer(Allocator.TempJob, PlaybackPolicy.SinglePlayback);
             foreach (var sceneSection in sceneSectionsToInit)
             {

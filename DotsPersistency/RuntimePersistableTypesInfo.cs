@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace DotsPersistency
@@ -15,6 +16,16 @@ namespace DotsPersistency
         [SerializeField]
         private List<ulong> _stableTypeHashes = new List<ulong>();
         public List<ulong> StableTypeHashes => _stableTypeHashes;
+        
+        [SerializeField]
+        private List<string> _fullTypeNames = new List<string>();
+        public List<string> FullTypeNames => _fullTypeNames;
+
+        public ulong GetStableTypeHashFromFullTypeName(string fullTypeName)
+        {
+            int index = FullTypeNames.IndexOf(fullTypeName);
+            return index >= 0 ? StableTypeHashes[index] : 0;
+        }
         
         public static RuntimePersistableTypesInfo Load()
         {

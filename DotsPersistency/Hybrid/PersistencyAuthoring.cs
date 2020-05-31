@@ -15,25 +15,30 @@ namespace DotsPersistency.Hybrid
     [RequiresEntityConversion]
     public class PersistencyAuthoring : MonoBehaviour
     {
-        public List<ulong> TypesToPersistHashes = new List<ulong>();
+        public List<string> FullTypeNamesToPersist = new List<string>();
 
-        public FixedList128<ulong> GetPersistingTypeHashes()
+        public FixedList128<ulong> GetPersistingTypeHashes(RuntimePersistableTypesInfo runtimePersistableTypesInfo)
         {
             var retVal = new FixedList128<ulong>();
-            Debug.Assert(TypesToPersistHashes.Count <= retVal.Capacity, $"more than {retVal.Capacity} persisted ComponentData types is not supported");
-            foreach (var hash in TypesToPersistHashes)
+            Debug.Assert(FullTypeNamesToPersist.Count <= retVal.Capacity, $"more than {retVal.Capacity} persisted ComponentData types is not supported");
+            foreach (var typeName in FullTypeNamesToPersist)
             {
+                ulong hash = runtimePersistableTypesInfo.GetStableTypeHashFromFullTypeName(typeName);
+                if (hash == 0)
+                {
+                    continue;
+                }
                 retVal.Add(hash); 
             }
             return retVal;
         }
 
-        public Hash128 GetStablePersistenceArchetypeHash()
+        public Hash128 GetStablePersistenceArchetypeHash(RuntimePersistableTypesInfo runtimePersistableTypesInfo)
         {
             ulong hash1 = 0;
             ulong hash2 = 0;
 
-            for (int i = 0; i < TypesToPersistHashes.Count; i++)
+            for (int i = 0; i < FullTypeNamesToPersist.Count; i++)
             {
                 unchecked
                 {
@@ -41,14 +46,14 @@ namespace DotsPersistency.Hybrid
                     {
                         ulong hash = 17;
                         hash = hash * 31 + hash1;
-                        hash = hash * 31 + TypesToPersistHashes[i];
+                        hash = hash * 31 + (ulong)FullTypeNamesToPersist[i].GetHashCode();
                         hash1 = hash;
                     }
                     else
                     {
                         ulong hash = 17;
                         hash = hash * 31 + hash2;
-                        hash = hash * 31 + TypesToPersistHashes[i];
+                        hash = hash * 31 + (ulong)FullTypeNamesToPersist[i].GetHashCode();
                         hash2 = hash;
                     }
                 }
@@ -71,14 +76,14 @@ namespace DotsPersistency.Hybrid
                     break;
                 var compsInChildren = rootGameObject.GetComponentsInChildren<PersistencyAuthoring>();
                 
-                arrayIndex += compsInChildren.Count(comp => TypesToPersistHashes.SequenceEqual(comp.TypesToPersistHashes));
+                arrayIndex += compsInChildren.Count(comp => FullTypeNamesToPersist.SequenceEqual(comp.FullTypeNamesToPersist));
             }
             foreach (PersistencyAuthoring child in rootParent.GetComponentsInChildren<PersistencyAuthoring>())
             {
                 if (child == this)
                     break;
 
-                if (TypesToPersistHashes.SequenceEqual(child.TypesToPersistHashes))
+                if (FullTypeNamesToPersist.SequenceEqual(child.FullTypeNamesToPersist))
                 {
                     arrayIndex += 1;
                 }

@@ -21,7 +21,8 @@ namespace DotsPersistency
             PersistentDataStorage = World.GetOrCreateSystem<BeginFramePersistentDataSystem>().PersistentDataStorage;
 
             _unloadStreamRequests = GetEntityQuery(ComponentType.Exclude<RequestPersistentSceneLoaded>()
-                , ComponentType.ReadOnly<RequestSceneLoaded>(), ComponentType.ReadOnly<SceneSectionData>());
+                , ComponentType.ReadOnly<RequestSceneLoaded>(), ComponentType.ReadOnly<SceneSectionData>(), ComponentType.ReadOnly<PersistingSceneType>());
+            _unloadStreamRequests.SetSharedComponentFilter(new PersistingSceneType() {PersistingStrategy = PersistingStrategy.OnUnLoad});
             RequireForUpdate(_unloadStreamRequests);
         }
     
@@ -46,7 +47,6 @@ namespace DotsPersistency
             
             // this will trigger the actual unload
             _ecbSystem.CreateCommandBuffer().RemoveComponent<RequestSceneLoaded>(_unloadStreamRequests);
-            // _ecbSystem.AddJobHandleForProducer(allPersistJobs);
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Jobs;
+using UnityEngine;
 
 namespace DotsPersistency
 {
@@ -33,6 +34,8 @@ namespace DotsPersistency
 
         private void CacheQuery(ComponentType type)
         {
+            Debug.Assert(type.TypeIndex != -1, "Invalid type, you probably need to update RuntimePersistableTypesInfo (with the button on UserDefinedPersistableTypes.asset)");
+            
             var query = CreatePersistenceEntityQuery(type);
             _queryCache.Add(type, query);
             
