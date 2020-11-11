@@ -9,144 +9,126 @@ using UnityEngine;
 
 namespace DotsPersistency
 {
-    public class PersistentDataStorage : IDisposable
+    public class PersistentDataStorage
     {
-        private Dictionary<SceneSection, PersistentDataContainer> _sceneToData;
-        private IPersistencySerializer _serializer = new DefaultPersistencySerializer();
-
-        public PersistentDataStorage()
+        struct ArchetypesWithStates
         {
-            _sceneToData = new Dictionary<SceneSection, PersistentDataContainer>(32);
+            public int LatestWriteIndex;
+            public NativeArray<PersistenceArchetype> Archetypes;
+            public PersistentDataContainer InitialSceneState;
+            public List<PersistentDataContainer> RingBuffer;
         }
-
-        public PersistentDataContainer GetCopyOfContainer(SceneSection sceneSection)
+        
+        private int _ringBufferIndex;
+        private int _latestWriteNonWrappedIndex;
+        private int _nonWrappedIndex;
+        public int NonWrappedIndex => _nonWrappedIndex;
+        public readonly int RingBufferSize;
+        private Dictionary<SceneSection, ArchetypesWithStates> _allPersistedData = new Dictionary<SceneSection, ArchetypesWithStates>(8);
+        private IPersistencySerializer _serializer = new DefaultPersistencySerializer();
+        
+        public PersistentDataStorage(int ringBufferSize)
         {
-            Debug.Assert(_sceneToData.ContainsKey(sceneSection));
-            return _sceneToData[sceneSection].GetCopy();
+            RingBufferSize = ringBufferSize;
         }
         
         public void Dispose()
         {
-            foreach (var value in _sceneToData.Values)
+            foreach (ArchetypesWithStates value in _allPersistedData.Values)
             {
-                value.Dispose();
-            }
-        }
-        
-        public void Dispose(JobHandle jobHandle)
-        {
-            foreach (var value in _sceneToData.Values)
-            {
-                value.Dispose(jobHandle);
+                value.Archetypes.Dispose();
+                value.InitialSceneState.Dispose();
+                foreach (var persistentDataContainer in value.RingBuffer)
+                {
+                    persistentDataContainer.Dispose();
+                }
             }
         }
 
-        public PersistentDataContainer GetExistingContainer(SceneSection sceneSection)
+        public void ToIndex(int nonWrappedIndex)
         {
-            return _sceneToData[sceneSection];
-        }
-        
-        internal void CreateContainer(SceneSection sceneSection, NativeArray<PersistenceArchetype> archetypes)
-        {
-            _sceneToData.Add(sceneSection, new PersistentDataContainer(sceneSection, archetypes, Allocator.Persistent));
-        }
-        
-        public bool HasContainer(SceneSection sceneSection)
-        {
-            return _sceneToData.ContainsKey(sceneSection);
+            Debug.Assert(_latestWriteNonWrappedIndex - nonWrappedIndex < RingBufferSize);
+            _ringBufferIndex = nonWrappedIndex % RingBufferSize;
+            _nonWrappedIndex = nonWrappedIndex;
         }
 
-        public bool IsWaitingForContainer(SceneSection sceneSection)
+        public PersistentDataContainer GetWriteContainerForCurrentIndex(SceneSection sceneSection)
         {
-            // Can do an async file read & return false once it's fully read into memory
-            // Can do a web request & return false once you got the data
-            return false;
+            var data = _allPersistedData[sceneSection];
+            data.LatestWriteIndex = _ringBufferIndex;
+            _allPersistedData[sceneSection] = data;
+            _latestWriteNonWrappedIndex = _nonWrappedIndex;
+            return data.RingBuffer[_ringBufferIndex];
+        }
+        
+        public PersistentDataContainer GetReadContainerForCurrentIndex(SceneSection sceneSection)
+        {
+            return _allPersistedData[sceneSection].RingBuffer[_ringBufferIndex];
         }
 
+        public virtual bool RequireContainer(SceneSection sceneSection)
+        {
+            return true;
+        }
+
+        // returns initial state container, so it would be used to persist the initial state
+        public PersistentDataContainer InitializeSceneSection(SceneSection sceneSection, NativeArray<PersistenceArchetype> archetypes)
+        {
+            Debug.Assert(!_allPersistedData.ContainsKey(sceneSection));
+            var newData = new ArchetypesWithStates()
+            {
+                Archetypes = archetypes,
+                InitialSceneState = new PersistentDataContainer(sceneSection, archetypes, Allocator.Persistent),
+                RingBuffer = new List<PersistentDataContainer>(RingBufferSize),
+                LatestWriteIndex = -1
+            };
+            for (int i = 0; i < RingBufferSize; i++)
+            {
+                newData.RingBuffer.Add(newData.InitialSceneState.GetCopy());
+            }
+            _allPersistedData[sceneSection] = newData;
+            return newData.InitialSceneState;
+        }
+        
+        public bool IsSceneSectionInitialized(SceneSection sceneSection)
+        {
+            return _allPersistedData.ContainsKey(sceneSection);
+        }
+        
         public void RegisterCustomSerializer(IPersistencySerializer serializer)
         {
             _serializer = serializer;
         }
-
-        public void SaveAllToDisk()
-        {
-            foreach (var container in _sceneToData.Values)
-            {
-                _serializer.WriteContainerData(container);
-            }
-        }
         
+        public void SaveToDisk(SceneSection sceneSection)
+        {
+            _serializer.WriteContainerData(GetReadContainerForCurrentIndex(sceneSection));
+        }
+
         public void ReadContainerDataFromDisk(SceneSection sceneSection)
         {
-            _serializer.ReadContainerData(_sceneToData[sceneSection]);
+            _serializer.ReadContainerData(GetWriteContainerForCurrentIndex(sceneSection));
         }
-    }
-    
-    public struct PersistentDataContainer : IDisposable
-    {
-        private NativeArray<byte> _data;
-        private NativeArray<PersistenceArchetype> _persistenceArchetypes;
-            
-        public SceneSection SceneSection => _sceneSection;
-        private SceneSection _sceneSection;
 
-        public int Count => _persistenceArchetypes.Length;
-
-        public PersistentDataContainer(SceneSection sceneSection, NativeArray<PersistenceArchetype> persistenceArchetypes, Allocator allocator)
+        public PersistentDataContainer GetLatestWrittenState(SceneSection sceneSection, out bool isInitial)
         {
-            _sceneSection = sceneSection;
-            _persistenceArchetypes = new NativeArray<PersistenceArchetype>(persistenceArchetypes.Length, Allocator.Persistent);
-            persistenceArchetypes.CopyTo(_persistenceArchetypes);
-
-            int size = 0;
-            foreach (var persistenceArchetype in persistenceArchetypes)
+            var data = _allPersistedData[sceneSection];
+            if (data.LatestWriteIndex == -1)
             {
-                size += persistenceArchetype.Amount * persistenceArchetype.SizePerEntity;
+                isInitial = true;
+                return data.InitialSceneState;
             }
-            _data = new NativeArray<byte>(size, allocator);
-        }
-            
-        public PersistenceArchetype GetPersistenceArchetypeAtIndex(int index)
-        {
-            return _persistenceArchetypes[index];
-        }
-            
-        public NativeArray<byte> GetSubArrayAtIndex(int index)
-        {
-            var archetype = _persistenceArchetypes[index];
-            return _data.GetSubArray(archetype.Offset, archetype.Amount * archetype.SizePerEntity);
-        }
-
-        public NativeArray<byte> GetRawData()
-        {
-            return _data;
+            else
+            {
+                isInitial = false;
+                return data.RingBuffer[data.LatestWriteIndex];
+            }
         }
         
-        public NativeArray<PersistenceArchetype> GetRawPersistenceArchetypeArray()
+        public PersistentDataContainer GetInitialState(SceneSection sceneSection)
         {
-            return _persistenceArchetypes;
-        }
-            
-        // bug todo incorrect implementation
-        public PersistentDataContainer GetCopy()
-        {
-            throw new NotImplementedException();
-            //PersistentDataContainer copy = this;
-            //_data.CopyTo(copy._data);
-            //return copy;
-        }
-
-        public void Dispose()
-        {
-            _data.Dispose();
-            _persistenceArchetypes.Dispose();
-        }
-            
-        public void Dispose(JobHandle jobHandle)
-        {
-            _data.Dispose(jobHandle);
-            _persistenceArchetypes.Dispose(jobHandle);
+            var data = _allPersistedData[sceneSection];
+            return data.InitialSceneState;
         }
     }
-
 }

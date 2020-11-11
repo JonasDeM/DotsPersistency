@@ -14,63 +14,69 @@ namespace DotsPersistency
     [UpdateAfter(typeof(SceneSystemGroup))]
     public class BeginFramePersistentDataSystem : PersistencyJobSystem
     {
-        public PersistentDataStorage PersistentDataStorage { get; private set; }
-
         private EntityCommandBufferSystem _ecbSystem;
 
-        private NativeList<SceneSection> _persistRequests;
-        private NativeList<SceneSection> _applyRequests;
+        private List<PersistentDataContainer> _initialStatePersistRequests;
+        private List<PersistentDataContainer> _applyRequests;
         
         protected override void OnCreate()
         {
+            base.OnCreate();
             InitializeReadWrite(RuntimePersistableTypesInfo.Load());
-            PersistentDataStorage = new PersistentDataStorage();
+            _applyRequests = new List<PersistentDataContainer>(8);
             _ecbSystem = World.GetOrCreateSystem<EndInitializationEntityCommandBufferSystem>();
-            _persistRequests = new NativeList<SceneSection>(8, Allocator.Persistent);
-            _applyRequests = new NativeList<SceneSection>(8, Allocator.Persistent);
+            _initialStatePersistRequests = new List<PersistentDataContainer>(8);
         }
 
-        protected override void OnDestroy()
+        internal void RequestInitialStatePersist(PersistentDataContainer sceneSectionState)
         {
-            PersistentDataStorage.Dispose();
-            _persistRequests.Dispose();
-            _applyRequests.Dispose();
+            for (int i = 0; i < _initialStatePersistRequests.Count; i++)
+            {
+                if (_initialStatePersistRequests[i].SceneSection.Equals(sceneSectionState.SceneSection))
+                {
+                    _initialStatePersistRequests[i] = sceneSectionState;
+                    Debug.LogWarning($"BeginFramePersistentDataSystem:: Double persist request for scene section ({sceneSectionState.SceneSection.SceneGUID.ToString()} - {sceneSectionState.SceneSection.Section.ToString()})! (Will only do last request)");
+                    return;
+                }
+            }
+            _initialStatePersistRequests.Add(sceneSectionState);
         }
 
-        internal void RequestPersist(SceneSection sceneSection)
+        public void RequestApply(PersistentDataContainer sceneSectionState)
         {
-            Debug.Assert(!_persistRequests.Contains(sceneSection), "Double request to persist data!");
-            _persistRequests.Add(sceneSection);
-        }
-        
-        public void RequestApply(SceneSection sceneSection)
-        {
-            Debug.Assert(!_applyRequests.Contains(sceneSection), "Double request to apply data!");
-            _applyRequests.Add(sceneSection);
-        }
-        
-        public void RequestApply(PersistentDataContainer dataContainer)
-        {
-            Debug.LogWarning("Implement me");
+            for (int i = 0; i < _applyRequests.Count; i++)
+            {
+                if (_applyRequests[i].SceneSection.Equals(sceneSectionState.SceneSection))
+                {
+                    if (_applyRequests[i].Tick < sceneSectionState.Tick)
+                    {
+                        _applyRequests[i] = sceneSectionState;
+                        Debug.LogWarning($"BeginFramePersistentDataSystem:: Multiple different apply request for scene section ({sceneSectionState.SceneSection.SceneGUID.ToString()} - {sceneSectionState.SceneSection.Section.ToString()})! (Will apply oldest data)");
+                    }
+                    return;
+                }
+            }
+            _applyRequests.Add(sceneSectionState);
         }
 
         protected override void OnUpdate()
         {
             JobHandle inputDependencies = Dependency;
             
-            foreach (var sceneSection in _persistRequests)
+            foreach (var container in _initialStatePersistRequests)
             {
-                Dependency = JobHandle.CombineDependencies(Dependency,
-                    ScheduleCopyToPersistentDataContainer(inputDependencies, sceneSection, PersistentDataStorage.GetExistingContainer(sceneSection)));
+                Dependency = JobHandle.CombineDependencies(Dependency, ScheduleCopyToPersistentDataContainer(inputDependencies, container.SceneSection, container));
             }
-            foreach (var sceneSection in _applyRequests)
+
+            JobHandle applyDependencies = new JobHandle();
+            foreach (var container in _applyRequests)
             {
-                Dependency = JobHandle.CombineDependencies(Dependency,
-                    ScheduleApplyToSceneSection(inputDependencies, sceneSection, PersistentDataStorage.GetExistingContainer(sceneSection), _ecbSystem));
+                applyDependencies = JobHandle.CombineDependencies(applyDependencies,  ScheduleApplyToSceneSection(inputDependencies, container.SceneSection, container, _ecbSystem));
             }
-            _ecbSystem.AddJobHandleForProducer(Dependency);
+            _ecbSystem.AddJobHandleForProducer(applyDependencies);
+            Dependency = JobHandle.CombineDependencies(Dependency, applyDependencies);
             
-            _persistRequests.Clear();
+            _initialStatePersistRequests.Clear();
             _applyRequests.Clear();
         }
     }

@@ -25,7 +25,7 @@ namespace DotsPersistency
         protected override void OnCreate()
         {
             _beginFrameSystem = World.GetOrCreateSystem<BeginFramePersistentDataSystem>();
-            PersistentDataStorage = _beginFrameSystem.PersistentDataStorage;
+            PersistentDataStorage = new PersistentDataStorage(1);
             _sceneLoadedCheckQuery = GetEntityQuery(ComponentType.ReadOnly<SceneSection>());
             
             _initEntitiesQuery = GetEntityQuery(new EntityQueryDesc(){ 
@@ -68,7 +68,7 @@ namespace DotsPersistency
                 {
                     requestInfo.CurrentLoadingStage = RequestPersistentSceneLoaded.Stage.WaitingForContainer;
                 }
-                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneLoaded.Stage.WaitingForContainer && !PersistentDataStorage.IsWaitingForContainer(sceneSection))
+                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneLoaded.Stage.WaitingForContainer && PersistentDataStorage.RequireContainer(sceneSection))
                 {
                     // After the container is available actually start loading the scene
                     ecb.AddComponent(entity, new RequestSceneLoaded()
@@ -92,26 +92,51 @@ namespace DotsPersistency
             immediateStructuralChanges.Dispose();
         }
 
+        public void RequestRollback(int index)
+        {
+            PersistentDataStorage.ToIndex(index);
+            Entities.ForEach((ref RequestPersistentSceneLoaded requestInfo, in SceneSectionData sceneSectionData) =>
+            {
+                SceneSection sceneSection = new SceneSection{Section = sceneSectionData.SubSectionIndex, SceneGUID = sceneSectionData.SceneGUID};
+                if (requestInfo.CurrentLoadingStage != RequestPersistentSceneLoaded.Stage.Complete)
+                {
+                    Debug.Log($"A scene section ({sceneSection.SceneGUID}, {sceneSection.Section}) was loading while a rollback was requested, the scene section won't be rolled back. TODO This scene should on load get 'rolled forward' to a recent tick on the server then the rollback can happen again to the oldest tick not only from input but from roll forward too.");
+                    return;
+                }
+                _beginFrameSystem.RequestApply(PersistentDataStorage.GetReadContainerForCurrentIndex(sceneSection));
+            }).WithoutBurst().Run();
+        }
+        
+        public void ResetScene()
+        {
+            PersistentDataStorage.ToIndex(0);
+            Entities.ForEach((ref RequestPersistentSceneLoaded requestInfo, in SceneSectionData sceneSectionData) =>
+            {
+                SceneSection sceneSection = new SceneSection{Section = sceneSectionData.SubSectionIndex, SceneGUID = sceneSectionData.SceneGUID};
+                _beginFrameSystem.RequestApply(PersistentDataStorage.GetInitialState(sceneSection));
+            }).WithoutBurst().Run();
+        }
+
         private void InitSceneSection(SceneSection sceneSection, List<TypeHashesToPersist> typeHashes, EntityCommandBuffer ecb)
         {
-            if (PersistentDataStorage.HasContainer(sceneSection))
+            if (PersistentDataStorage.IsSceneSectionInitialized(sceneSection))
             {
-                var dataContainer = PersistentDataStorage.GetExistingContainer(sceneSection);
-                
-                for (int i = 0; i < dataContainer.Count; i++)
+                PersistentDataContainer latestState = PersistentDataStorage.GetLatestWrittenState(sceneSection, out bool isInitial);
+                for (int i = 0; i < latestState.Count; i++)
                 {
-                    PersistenceArchetype archetype = dataContainer.GetPersistenceArchetypeAtIndex(i);
+                    PersistenceArchetype archetype = latestState.GetPersistenceArchetypeAtIndex(i);
                     _initEntitiesQuery.SetSharedComponentFilter(archetype.ToHashList(), sceneSection);
                     
                     ecb.AddSharedComponent(_initEntitiesQuery, archetype);
                     ecb.RemoveComponent<TypeHashesToPersist>(_initEntitiesQuery);
                 }
-                _beginFrameSystem.RequestApply(sceneSection);
-            } // could do else if PersistentDataStorage.HasDelta(sceneSection) => request persist, delta apply & apply
+
+                _beginFrameSystem.RequestApply(latestState);
+            }
             else
             {
                 int offset = 0;
-                var archetypes = new NativeArray<PersistenceArchetype>(typeHashes.Count, Allocator.Temp);
+                var archetypes = new NativeArray<PersistenceArchetype>(typeHashes.Count, Allocator.Persistent);
                 for (var i = 0; i < typeHashes.Count; i++)
                 {
                     var typeHashesToPersist = typeHashes[i];
@@ -135,9 +160,9 @@ namespace DotsPersistency
                     ecb.RemoveComponent<TypeHashesToPersist>(_initEntitiesQuery);
                 }
 
-                PersistentDataStorage.CreateContainer(sceneSection, archetypes);
-                _beginFrameSystem.RequestPersist(sceneSection);
-                archetypes.Dispose();
+                // this function takes ownership over the archetypes array
+                var initialStateContainer = PersistentDataStorage.InitializeSceneSection(sceneSection, archetypes);
+                _beginFrameSystem.RequestInitialStatePersist(initialStateContainer);
             }
         }
 
@@ -192,6 +217,18 @@ namespace DotsPersistency
             {
                 Debug.LogWarning($"Persisting components with BlobAssetReferences is not supported. Type: {ComponentType.FromTypeIndex(typeInfo.TypeIndex)}");
             }
+        }
+        
+        public void ReplaceCurrentDataStorage(PersistentDataStorage storage)
+        {
+            PersistentDataStorage.Dispose();
+            PersistentDataStorage = storage;
+        }
+
+        protected override void OnDestroy()
+        {
+            base.OnDestroy();
+            PersistentDataStorage.Dispose();
         }
     }
 }

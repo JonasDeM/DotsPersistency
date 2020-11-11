@@ -11,8 +11,6 @@ namespace DotsPersistency
 {
     public interface IPersistencySerializer
     {
-        bool UseDeltaCompression { get; }
-
         string GetResourcePath(SceneSection sceneSection);
 
         void WriteContainerData(PersistentDataContainer container);
@@ -21,8 +19,6 @@ namespace DotsPersistency
     
     public class DefaultPersistencySerializer : IPersistencySerializer
     {
-        public bool UseDeltaCompression => false;
-
         public string GetResourcePath(SceneSection sceneSection)
         {
             StringBuilder sb = new StringBuilder(128);

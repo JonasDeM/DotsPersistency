@@ -4,21 +4,24 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
+using UnityEngine;
 
 namespace DotsPersistency
 {
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     public class EndFramePersistentDataSystem : PersistencyJobSystem
     {
-        public PersistentDataStorage PersistentDataStorage { get; private set; }
         private EntityQuery _unloadStreamRequests;
         private EntityCommandBufferSystem _ecbSystem;
+        private PersistenceInitializationSystem _containerSystem;
 
         protected override void OnCreate()
         {
+            base.OnCreate();
+            
             InitializeReadOnly(RuntimePersistableTypesInfo.Load());
             _ecbSystem = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
-            PersistentDataStorage = World.GetOrCreateSystem<BeginFramePersistentDataSystem>().PersistentDataStorage;
+            _containerSystem = World.GetOrCreateSystem<PersistenceInitializationSystem>();
 
             _unloadStreamRequests = GetEntityQuery(ComponentType.Exclude<RequestPersistentSceneLoaded>()
                 , ComponentType.ReadOnly<RequestSceneLoaded>(), ComponentType.ReadOnly<SceneSectionData>(), ComponentType.ReadOnly<PersistingSceneType>());
@@ -38,10 +41,10 @@ namespace DotsPersistency
                     Section = sceneSectionData.SubSectionIndex,
                     SceneGUID = sceneSectionData.SceneGUID
                 };
-                
-                Dependency = JobHandle.CombineDependencies(
-                    Dependency,
-                    ScheduleCopyToPersistentDataContainer(inputDependencies, sceneSectionToPersist, PersistentDataStorage.GetExistingContainer(sceneSectionToPersist)));
+
+                var writeContainer = _containerSystem.PersistentDataStorage.GetWriteContainerForCurrentIndex(sceneSectionToPersist);
+                Dependency = JobHandle.CombineDependencies(Dependency,
+                    ScheduleCopyToPersistentDataContainer(inputDependencies, sceneSectionToPersist, writeContainer));
             }
             sceneSectionsToUnload.Dispose();
             
