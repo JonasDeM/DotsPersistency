@@ -130,7 +130,7 @@ namespace DotsPersistency
                     query.SetSharedComponentFilter(sceneSection, persistenceArchetype);
                     
                     // Grab containers
-                    var persistenceStateChunkType = GetArchetypeChunkComponentType<PersistenceState>(true);
+                    var persistenceStateChunkType = GetComponentTypeHandle<PersistenceState>(true);
                     var outputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
                     
                     JobHandle jobHandle;
@@ -149,7 +149,7 @@ namespace DotsPersistency
                     {
                         jobHandle = new CopyComponentDataToByteArray()
                         {
-                            ChunkComponentType = GetArchetypeChunkComponentTypeDynamic(runtimeType),
+                            ChunkComponentType = GetDynamicComponentTypeHandle(runtimeType),
                             TypeSize = typeInfo.ElementSize,
                             PersistenceStateType = persistenceStateChunkType,
                             OutputData = outputData,
@@ -198,7 +198,7 @@ namespace DotsPersistency
                     excludeQuery.SetSharedComponentFilter(sceneSection, persistenceArchetype);
                     
                     // Grab read-only containers
-                    var persistenceStateChunkType = GetArchetypeChunkComponentType<PersistenceState>(true);
+                    var persistenceStateChunkType = GetComponentTypeHandle<PersistenceState>(true);
                     var inputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
                     
                     JobHandle jobHandle;
@@ -220,7 +220,7 @@ namespace DotsPersistency
                         {
                             compDataJobHandle1 = new CopyByteArrayToComponentData()
                             {
-                                ChunkComponentType = GetArchetypeChunkComponentTypeDynamic(runtimeType),
+                                ChunkComponentType = GetDynamicComponentTypeHandle(runtimeType),
                                 TypeSize = typeInfo.ElementSize,
                                 PersistenceStateType = persistenceStateChunkType,
                                 InputData = inputData
@@ -232,9 +232,9 @@ namespace DotsPersistency
                             TypeToRemove = runtimeType,
                             TypeSize = typeInfo.ElementSize,
                             PersistenceStateType = persistenceStateChunkType,
-                            EntityType = GetArchetypeChunkEntityType(),
+                            EntityType = GetEntityTypeHandle(),
                             InputData = inputData,
-                            Ecb = ecbSystem.CreateCommandBuffer().ToConcurrent()
+                            Ecb = ecbSystem.CreateCommandBuffer().AsParallelWriter()
                         }.Schedule(query, inputDeps);
                         
                         JobHandle compDataJobHandle3 = new AddMissingComponent()
@@ -242,9 +242,9 @@ namespace DotsPersistency
                             ComponentType = runtimeType,
                             TypeSize = typeInfo.ElementSize,
                             PersistenceStateType = persistenceStateChunkType,
-                            EntityType = GetArchetypeChunkEntityType(),
+                            EntityType = GetEntityTypeHandle(),
                             InputData = inputData,
-                            Ecb = ecbSystem.CreateCommandBuffer().ToConcurrent()
+                            Ecb = ecbSystem.CreateCommandBuffer().AsParallelWriter()
                         }.Schedule(excludeQuery, inputDeps);
                         
                         jobHandle = JobHandle.CombineDependencies(compDataJobHandle1, compDataJobHandle2, compDataJobHandle3);

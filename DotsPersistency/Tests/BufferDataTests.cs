@@ -48,7 +48,7 @@ namespace DotsPersistency.Tests
             // Action
             var job1 = new CopyBufferElementsToByteArray()
             {
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array1Data,
                 ChunkBufferType = m_Manager.GetArchetypeChunkBufferTypeDynamic(typeof(PersistentDynamicBufferData1)),
                 ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData1>().ElementSize,
@@ -57,7 +57,7 @@ namespace DotsPersistency.Tests
             
             var job2 = new CopyBufferElementsToByteArray()
             {
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array2Data,
                 ChunkBufferType = m_Manager.GetArchetypeChunkBufferTypeDynamic(typeof(PersistentDynamicBufferData2)),
                 ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData2>().ElementSize,
@@ -66,7 +66,7 @@ namespace DotsPersistency.Tests
             
             var job3 = new CopyBufferElementsToByteArray()
             {
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array3Data,
                 ChunkBufferType = m_Manager.GetArchetypeChunkBufferTypeDynamic(typeof(PersistentDynamicBufferData3)),
                 ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData3>().ElementSize,
@@ -225,7 +225,7 @@ namespace DotsPersistency.Tests
             // Action
             var job1 = new CopyByteArrayToBufferElements()
             {
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array1Data,
                 ChunkBufferType = m_Manager.GetArchetypeChunkBufferTypeDynamic(typeof(PersistentDynamicBufferData1)),
                 ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData1>().ElementSize,
@@ -234,7 +234,7 @@ namespace DotsPersistency.Tests
             
             var job2 = new CopyByteArrayToBufferElements()
             {
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array2Data,
                 ChunkBufferType = m_Manager.GetArchetypeChunkBufferTypeDynamic(typeof(PersistentDynamicBufferData2)),
                 ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData2>().ElementSize,
@@ -243,7 +243,7 @@ namespace DotsPersistency.Tests
             
             var job3 = new CopyByteArrayToBufferElements()
             {
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array3Data,
                 ChunkBufferType = m_Manager.GetArchetypeChunkBufferTypeDynamic(typeof(PersistentDynamicBufferData3)),
                 ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData3>().ElementSize,

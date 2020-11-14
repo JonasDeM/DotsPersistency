@@ -45,25 +45,25 @@ namespace DotsPersistency.Tests
             // Action
             var job1 = new CopyComponentDataToByteArray()
             {
-                ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingTestData)),
+                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array1IntData
             }.Schedule(query1);
             
             var job2 =new CopyComponentDataToByteArray()
             {
-                ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingFloatTestData2)),
+                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() ,
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array2FloatData
             }.Schedule(query2);
             
             var job3 =new CopyComponentDataToByteArray()
             {
-                ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingTestData5)),
+                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array5IntData
             }.Schedule(query3);
             
@@ -190,25 +190,25 @@ namespace DotsPersistency.Tests
             // Action
             new CopyByteArrayToComponentData()
             {
-                ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingTestData)),
+                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array1IntData
             }.Run(query1);
             
             new CopyByteArrayToComponentData()
             {
-                ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingFloatTestData2)),
+                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array2FloatData
             }.Run(query2);
 
             new CopyByteArrayToComponentData()
             {
-                ChunkComponentType = m_Manager.GetArchetypeChunkComponentTypeDynamic(typeof(EcsPersistingTestData5)),
+                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array5IntData
             }.Run(query3);
 
@@ -261,10 +261,10 @@ namespace DotsPersistency.Tests
                 {
                     ComponentType = typeof(EcsPersistingTestData),
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
-                    EntityType = m_Manager.GetArchetypeChunkEntityType(),
-                    PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                    EntityType = m_Manager.GetEntityTypeHandle(),
+                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                     InputData = array1IntData,
-                    Ecb = cmds.ToConcurrent()
+                    Ecb = cmds.AsParallelWriter()
                 }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestData), typeof(PersistenceState)));
                 cmds.Playback(m_Manager);
             }
@@ -275,10 +275,10 @@ namespace DotsPersistency.Tests
                 {
                     ComponentType = typeof(EcsPersistingFloatTestData2),
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
-                    EntityType = m_Manager.GetArchetypeChunkEntityType(),
-                    PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                    EntityType = m_Manager.GetEntityTypeHandle(),
+                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                     InputData = array2FloatData,
-                    Ecb = cmds.ToConcurrent()
+                    Ecb = cmds.AsParallelWriter()
                 }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestFloatData2), typeof(PersistenceState)));
                 cmds.Playback(m_Manager);
             }
@@ -289,10 +289,10 @@ namespace DotsPersistency.Tests
                 {
                     ComponentType = typeof(EcsPersistingTestData5),
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
-                    EntityType = m_Manager.GetArchetypeChunkEntityType(),
-                    PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                    EntityType = m_Manager.GetEntityTypeHandle(),
+                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                     InputData = array5IntData,
-                    Ecb = cmds.ToConcurrent()
+                    Ecb = cmds.AsParallelWriter()
                 }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestData5), typeof(PersistenceState)));
                 cmds.Playback(m_Manager);
             }
@@ -347,7 +347,7 @@ namespace DotsPersistency.Tests
             // Action
             var readJob = new UpdateMetaDataForComponentTag()
             {
-                PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = data
             }.Schedule(query);
             readJob.Complete();
@@ -361,10 +361,10 @@ namespace DotsPersistency.Tests
                 {
                     TypeToRemove = typeof(EmptyEcsPersistingTestData),
                     TypeSize = TypeManager.GetTypeInfo<EmptyEcsPersistingTestData>().ElementSize,
-                    PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                     InputData = data,
-                    EntityType = m_Manager.GetArchetypeChunkEntityType(),
-                    Ecb = cmds.ToConcurrent()
+                    EntityType = m_Manager.GetEntityTypeHandle(),
+                    Ecb = cmds.AsParallelWriter()
                 }.Schedule(query);
                 removeJob.Complete();
                 cmds.Playback(m_Manager);
@@ -376,10 +376,10 @@ namespace DotsPersistency.Tests
                 {
                     ComponentType = typeof(EmptyEcsPersistingTestData),
                     TypeSize = TypeManager.GetTypeInfo<EmptyEcsPersistingTestData>().ElementSize,
-                    PersistenceStateType = m_Manager.GetArchetypeChunkComponentType<PersistenceState>(true),
+                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                     InputData = data,
-                    EntityType = m_Manager.GetArchetypeChunkEntityType(),
-                    Ecb = cmds.ToConcurrent()
+                    EntityType = m_Manager.GetEntityTypeHandle(),
+                    Ecb = cmds.AsParallelWriter()
                 }.Schedule(excludeQuery);
                 addJob.Complete();
                 cmds.Playback(m_Manager);

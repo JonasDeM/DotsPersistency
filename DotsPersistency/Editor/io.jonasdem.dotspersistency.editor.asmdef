@@ -1,12 +1,12 @@
 {
     "name": "io.jonasdem.dotspersistency.editor",
     "references": [
-        "io.jonasdem.dotspersistency",
-        "Unity.Entities",
-        "Unity.Entities.Hybrid",
-        "Unity.Collections",
-        "Unity.Entities.Editor",
-        "io.jonasdem.dotspersistency.hybrid"
+        "GUID:42697df707fc47a4aa81e8cf52f99bfe",
+        "GUID:aaa622c5ca1ba8f45adaf6d3b4809534",
+        "GUID:734d92eba21c94caba915361bd5ac177",
+        "GUID:8819f35a0fc84499b990e90a4ca1911f",
+        "GUID:e0cd26848372d4e5c891c569017e11f1",
+        "GUID:c38fb62397af04c51b143415e1db6d90"
     ],
     "includePlatforms": [
         "Editor"

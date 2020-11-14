@@ -57,7 +57,7 @@ namespace DotsPersistency.Containers");
                 unsafe
                 {{
                     Debug.Assert(index < Length);
-                    return ref UnsafeUtilityEx.ArrayElementAsRef<T>(UnsafeUtility.AddressOf(ref _value0),
+                    return ref UnsafeUtility.ArrayElementAsRef<T>(UnsafeUtility.AddressOf(ref _value0),
                         index);
                 }}
             }}
