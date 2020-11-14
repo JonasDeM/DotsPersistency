@@ -12,7 +12,6 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency.Hybrid
 {
-    [RequiresEntityConversion]
     public class PersistencyAuthoring : MonoBehaviour
     {
         public List<string> FullTypeNamesToPersist = new List<string>();
