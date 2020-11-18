@@ -32,7 +32,7 @@ namespace DotsPersistency.Hybrid
             return retVal;
         }
 
-        public Hash128 GetStablePersistenceArchetypeHash(RuntimePersistableTypesInfo runtimePersistableTypesInfo)
+        public Hash128 GetStablePersistenceArchetypeHash()
         {
             ulong hash1 = 0;
             ulong hash2 = 0;

@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using DotsPersistency.Hybrid;
-using JetBrains.Annotations;
 using Unity.Entities;
 using UnityEditor;
 using UnityEngine;
@@ -19,9 +16,8 @@ namespace DotsPersistency.Editor
 
         private void OnEnable()
         {
-            PersistableTypesInfo.GetInstance();
-            _runTimeTypeInfos = PersistableTypesInfo.GetOrCreateRuntimeVersion();
-            _cachedFullTypeNames = new List<string>(_runTimeTypeInfos.FullTypeNames);
+            _runTimeTypeInfos = RuntimePersistableTypesInfo.GetOrCreateInEditor();
+            _cachedFullTypeNames = _runTimeTypeInfos.AllPersistableTypeInfos.Select(info => info.FullTypeName).ToList();
             _cachedFullTypeNames.Add("");
         }
 

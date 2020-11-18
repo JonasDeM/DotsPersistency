@@ -16,7 +16,7 @@ namespace DotsPersistency
     public unsafe struct CopyComponentDataToByteArray : IJobChunk
     {
         [ReadOnly, NativeDisableParallelForRestriction]
-        public DynamicComponentTypeHandle ChunkComponentType;
+        public DynamicComponentTypeHandle ComponentTypeHandle;
         public int TypeSize;
         [ReadOnly] 
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
@@ -25,7 +25,7 @@ namespace DotsPersistency
             
         public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
         {
-            var byteArray = chunk.GetComponentDataAsByteArray(ChunkComponentType);
+            var byteArray = chunk.GetComponentDataAsByteArray(ComponentTypeHandle);
             var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
             
             int totalElementSize = TypeSize + PersistenceMetaData.SizeOfStruct;
@@ -83,7 +83,7 @@ namespace DotsPersistency
     public unsafe struct CopyByteArrayToComponentData : IJobChunk
     {
         [NativeDisableContainerSafetyRestriction]
-        public DynamicComponentTypeHandle ChunkComponentType;
+        public DynamicComponentTypeHandle ComponentTypeHandle;
         public int TypeSize;
         [ReadOnly] 
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
@@ -92,7 +92,7 @@ namespace DotsPersistency
             
         public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
         {
-            var byteArray = chunk.GetComponentDataAsByteArray(ChunkComponentType);
+            var byteArray = chunk.GetComponentDataAsByteArray(ComponentTypeHandle);
             var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
             
             int totalElementSize = TypeSize + PersistenceMetaData.SizeOfStruct;
@@ -182,7 +182,7 @@ namespace DotsPersistency
     public unsafe struct CopyBufferElementsToByteArray : IJobChunk
     {
         [NativeDisableContainerSafetyRestriction, ReadOnly]
-        public ArchetypeChunkBufferDataTypeDynamic ChunkBufferType;
+        public DynamicBufferTypeHandle BufferTypeHandle;
         public int ElementSize;
         public int MaxElements;
         [ReadOnly] 
@@ -192,7 +192,7 @@ namespace DotsPersistency
             
         public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
         {
-            var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(ChunkBufferType);
+            var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(BufferTypeHandle);
             var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
             
             int sizePerEntity = ElementSize * MaxElements + PersistenceMetaData.SizeOfStruct;
@@ -225,7 +225,7 @@ namespace DotsPersistency
     public unsafe struct CopyByteArrayToBufferElements : IJobChunk
     {
         [NativeDisableContainerSafetyRestriction]
-        public ArchetypeChunkBufferDataTypeDynamic ChunkBufferType;
+        public DynamicBufferTypeHandle BufferTypeHandle;
         
         public int ElementSize;
         public int MaxElements;
@@ -236,7 +236,7 @@ namespace DotsPersistency
 
         public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
         {
-            var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(ChunkBufferType);
+            var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(BufferTypeHandle);
             var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
             
             Debug.Assert(MaxElements < PersistenceMetaData.MaxValueForAmount);
@@ -274,7 +274,7 @@ namespace DotsPersistency
     // public unsafe struct CopyComponentDataToByteArray : IJobChunk
     // {
     //     [ReadOnly, NativeDisableParallelForRestriction]
-    //     public DynamicComponentTypeHandle ChunkComponentType;
+    //     public DynamicComponentTypeHandle ComponentTypeHandle;
     //     public int TypeSize;
     //     [ReadOnly] 
     //     public ComponentTypeHandle<PersistenceState> PersistenceStateType;
@@ -285,7 +285,7 @@ namespace DotsPersistency
     //         
     //     public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
     //     {
-    //         var byteArray = chunk.GetComponentDataAsByteArray(ChunkComponentType);
+    //         var byteArray = chunk.GetComponentDataAsByteArray(ComponentTypeHandle);
     //         var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
     //         for (int i = 0; i < persistenceStateArray.Length; i++)
     //         {
@@ -303,7 +303,7 @@ namespace DotsPersistency
     // public unsafe struct CopyBufferElementsToByteArray : IJobChunk
     // {
     //     [NativeDisableParallelForRestriction, ReadOnly]
-    //     public ArchetypeChunkBufferDataTypeDynamic ChunkBufferType;
+    //     public ArchetypeChunkBufferDataTypeDynamic BufferTypeHandle;
     //     public int ElementSize;
     //     public int MaxElements;
     //     [ReadOnly] 
@@ -315,7 +315,7 @@ namespace DotsPersistency
     //         
     //     public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
     //     {
-    //         var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(ChunkBufferType);
+    //         var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(BufferTypeHandle);
     //         var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
     //         for (int i = 0; i < persistenceStateArray.Length; i++)
     //         {
@@ -405,7 +405,7 @@ namespace DotsPersistency
     // public unsafe struct CopyByteArrayToComponentData : IJobChunk
     // {
     //     [NativeDisableContainerSafetyRestriction]
-    //     public DynamicComponentTypeHandle ChunkComponentType;
+    //     public DynamicComponentTypeHandle ComponentTypeHandle;
     //     public int TypeSize;
     //     [ReadOnly] 
     //     public ComponentTypeHandle<PersistenceState> PersistenceStateType;
@@ -414,7 +414,7 @@ namespace DotsPersistency
     //         
     //     public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
     //     {
-    //         var byteArray = chunk.GetComponentDataAsByteArray(ChunkComponentType);
+    //         var byteArray = chunk.GetComponentDataAsByteArray(ComponentTypeHandle);
     //         var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
     //         
     //         for (int i = 0; i < persistenceStateArray.Length; i++)
@@ -435,7 +435,7 @@ namespace DotsPersistency
      // public unsafe struct CopyByteArrayToBufferElements : IJobChunk
      // {
      //     [NativeDisableContainerSafetyRestriction]
-     //     public ArchetypeChunkBufferDataTypeDynamic ChunkBufferType;
+     //     public ArchetypeChunkBufferDataTypeDynamic BufferTypeHandle;
      //     
      //     public int ElementSize;
      //     public int MaxElements;
@@ -448,7 +448,7 @@ namespace DotsPersistency
      // 
      //     public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
      //     {
-     //         var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(ChunkBufferType);
+     //         var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(BufferTypeHandle);
      //         var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
      //         for (int i = 0; i < persistenceStateArray.Length; i++)
      //         {

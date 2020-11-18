@@ -13,7 +13,7 @@ namespace DotsPersistency
 {
     // A persisting entity needs this component
     // It holds which data it needs to persist
-    public struct PersistenceArchetype : ISharedComponentData
+    public struct PersistenceArchetypeDataLayout : ISharedComponentData
     {
         public BlobAssetReference<BlobArray<PersistedTypeInfo>> PersistedTypeInfoArrayRef;
         public int Amount;
@@ -74,7 +74,7 @@ namespace DotsPersistency
     
     // A persisting entity needs this component
     // It holds the index into the sub array that holds the persisted data
-    // Entities their data will reside in the same arrays if they have the same SharedComponentData for SceneSection & PersistenceArchetype
+    // Entities their data will reside in the same arrays if they have the same SharedComponentData for SceneSection & PersistenceArchetypeDataLayout
     public struct PersistenceState : IComponentData, IEquatable<PersistenceState>
     {
         public int ArrayIndex;

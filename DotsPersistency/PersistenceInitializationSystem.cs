@@ -1,15 +1,15 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Scenes;
-using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 namespace DotsPersistency
 {
+    // All the work this system does could theoretically just happen during conversion.
+    // But that would make it so every little change (code & game object hierarchy) would need to trigger a reconvert & that doesn't scale very well.
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateAfter(typeof(SceneSystemGroup))]
     [UpdateBefore(typeof(BeginFramePersistentDataSystem))]
@@ -124,10 +124,10 @@ namespace DotsPersistency
                 PersistentDataContainer latestState = PersistentDataStorage.GetLatestWrittenState(sceneSection, out bool isInitial);
                 for (int i = 0; i < latestState.Count; i++)
                 {
-                    PersistenceArchetype archetype = latestState.GetPersistenceArchetypeAtIndex(i);
-                    _initEntitiesQuery.SetSharedComponentFilter(archetype.ToHashList(), sceneSection);
+                    PersistenceArchetypeDataLayout archetypeDataLayout = latestState.GetPersistenceArchetypeDataLayoutAtIndex(i);
+                    _initEntitiesQuery.SetSharedComponentFilter(archetypeDataLayout.ToHashList(), sceneSection);
                     
-                    ecb.AddSharedComponent(_initEntitiesQuery, archetype);
+                    ecb.AddSharedComponent(_initEntitiesQuery, archetypeDataLayout);
                     ecb.RemoveComponent<TypeHashesToPersist>(_initEntitiesQuery);
                 }
 
@@ -136,7 +136,7 @@ namespace DotsPersistency
             else
             {
                 int offset = 0;
-                var archetypes = new NativeArray<PersistenceArchetype>(typeHashes.Count, Allocator.Persistent);
+                var archetypes = new NativeArray<PersistenceArchetypeDataLayout>(typeHashes.Count, Allocator.Persistent);
                 for (var i = 0; i < typeHashes.Count; i++)
                 {
                     var typeHashesToPersist = typeHashes[i];
@@ -145,7 +145,7 @@ namespace DotsPersistency
                     if (amount <= 0) 
                         continue;
                 
-                    var persistenceArchetype = new PersistenceArchetype()
+                    var persistenceArchetype = new PersistenceArchetypeDataLayout()
                     {
                         Amount = _initEntitiesQuery.CalculateEntityCount(),
                         ArchetypeIndex = i,
@@ -208,14 +208,9 @@ namespace DotsPersistency
         [Conditional("DEBUG")]
         private static void ValidateType(TypeManager.TypeInfo typeInfo)
         {
-            if (TypeManager.HasEntityReferences(typeInfo.TypeIndex))
+            if (!RuntimePersistableTypesInfo.IsSupported(typeInfo, out string notSupportedReason))
             {
-                Debug.LogWarning($"Persisting components with Entity References is not supported. Type: {ComponentType.FromTypeIndex(typeInfo.TypeIndex)}");
-            }
-
-            if (typeInfo.BlobAssetRefOffsetCount > 0)
-            {
-                Debug.LogWarning($"Persisting components with BlobAssetReferences is not supported. Type: {ComponentType.FromTypeIndex(typeInfo.TypeIndex)}");
+                throw new NotSupportedException(notSupportedReason);
             }
         }
         

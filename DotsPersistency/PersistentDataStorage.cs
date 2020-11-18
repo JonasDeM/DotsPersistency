@@ -14,7 +14,7 @@ namespace DotsPersistency
         struct ArchetypesWithStates
         {
             public int LatestWriteIndex;
-            public NativeArray<PersistenceArchetype> Archetypes;
+            public NativeArray<PersistenceArchetypeDataLayout> Archetypes;
             public PersistentDataContainer InitialSceneState;
             public List<PersistentDataContainer> RingBuffer;
         }
@@ -72,7 +72,7 @@ namespace DotsPersistency
         }
 
         // returns initial state container, so it would be used to persist the initial state
-        public PersistentDataContainer InitializeSceneSection(SceneSection sceneSection, NativeArray<PersistenceArchetype> archetypes)
+        public PersistentDataContainer InitializeSceneSection(SceneSection sceneSection, NativeArray<PersistenceArchetypeDataLayout> archetypes)
         {
             Debug.Assert(!_allPersistedData.ContainsKey(sceneSection));
             var newData = new ArchetypesWithStates()
