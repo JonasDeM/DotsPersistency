@@ -19,7 +19,7 @@ namespace DotsPersistency
         {
             base.OnCreate();
             
-            InitializeReadOnly(RuntimePersistableTypesInfo.Load());
+            InitializeReadOnly();
             _ecbSystem = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
             _containerSystem = World.GetOrCreateSystem<PersistenceInitializationSystem>();
 

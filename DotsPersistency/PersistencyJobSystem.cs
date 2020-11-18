@@ -8,10 +8,12 @@ namespace DotsPersistency
     public abstract class PersistencyJobSystem : SystemBase
     {
         private readonly Dictionary<ComponentType, EntityQuery> _queryCache = new Dictionary<ComponentType, EntityQuery>(32, new CustomComparer());
+        protected RuntimePersistableTypesInfo RuntimePersistableTypesInfo;
         
-        protected void InitializeReadOnly(RuntimePersistableTypesInfo typesInfo)
+        protected void InitializeReadOnly()
         {
-            foreach (PersistableTypeInfo persistableTypeInfo in typesInfo.AllPersistableTypeInfos)
+            RuntimePersistableTypesInfo = RuntimePersistableTypesInfo.Load();
+            foreach (PersistableTypeInfo persistableTypeInfo in RuntimePersistableTypesInfo.AllPersistableTypeInfos)
             {
                 Debug.Assert(persistableTypeInfo.IsValid, "Invalid PersistableTypeInfo in the RuntimePersistableTypesInfo asset! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button)");
                 int typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash);
@@ -19,11 +21,13 @@ namespace DotsPersistency
             }
         }
         
-        protected void InitializeReadWrite(RuntimePersistableTypesInfo typesInfo)
+        protected void InitializeReadWrite()
         {
+            RuntimePersistableTypesInfo = RuntimePersistableTypesInfo.Load();
+            
             _queryCache.Add(ComponentType.ReadOnly<PersistenceState>(), CreatePersistenceEntityQuery());
 
-            foreach (PersistableTypeInfo persistableTypeInfo in typesInfo.AllPersistableTypeInfos)
+            foreach (PersistableTypeInfo persistableTypeInfo in RuntimePersistableTypesInfo.AllPersistableTypeInfos)
             {
                 Debug.Assert(persistableTypeInfo.IsValid, "Invalid PersistableTypeInfo in the RuntimePersistableTypesInfo asset! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button)");
                 int typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash);
