@@ -159,7 +159,7 @@ namespace DotsPersistency.Editor
             foreach (Type ecsType in _allAvailableTypes)
             {
                 string fullTypeName = ecsType.FullName;
-                bool hide = filterValues.Any(filterValue => !fullTypeName.Contains(filterValue));
+                bool hide = filterValues.Any(filterValue => fullTypeName.IndexOf(filterValue, StringComparison.InvariantCultureIgnoreCase) == -1);
                 
                 var oldAlignment =  GUI.skin.button.alignment;
                 GUI.skin.button.alignment = TextAnchor.MiddleLeft;
