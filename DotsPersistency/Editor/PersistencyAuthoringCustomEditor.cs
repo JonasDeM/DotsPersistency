@@ -12,11 +12,11 @@ namespace DotsPersistency.Editor
     public class PersistencyBehaviourEditor : UnityEditor.Editor
     {
         List<string> _cachedFullTypeNames;
-        private RuntimePersistableTypesInfo _runTimeTypeInfos;
+        private PersistencySettings _runTimeTypeInfos;
 
         private void OnEnable()
         {
-            _runTimeTypeInfos = RuntimePersistableTypesInfo.GetOrCreateInEditor();
+            _runTimeTypeInfos = PersistencySettings.GetOrCreateInEditor();
             _cachedFullTypeNames = _runTimeTypeInfos.AllPersistableTypeInfos.Select(info => info.FullTypeName).ToList();
             _cachedFullTypeNames.Add("");
         }

@@ -12,24 +12,24 @@ namespace DotsPersistency
     // But that would make it so every little change (code & game object hierarchy) would need to trigger a reconvert & that doesn't scale very well.
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateAfter(typeof(SceneSystemGroup))]
-    [UpdateBefore(typeof(BeginFramePersistentDataSystem))]
-    public class PersistenceInitializationSystem : SystemBase
+    [UpdateBefore(typeof(BeginFramePersistencySystem))]
+    public class PersistentSceneSystem : SystemBase
     {
         private EntityQuery _initEntitiesQuery;
         private EntityQuery _sceneLoadedCheckQuery;
         public PersistentDataStorage PersistentDataStorage { get; private set; }
 
         private EntityCommandBufferSystem _ecbSystem;
-        private BeginFramePersistentDataSystem _beginFrameSystem;
+        private BeginFramePersistencySystem _beginFrameSystem;
 
         protected override void OnCreate()
         {
-            _beginFrameSystem = World.GetOrCreateSystem<BeginFramePersistentDataSystem>();
+            _beginFrameSystem = World.GetOrCreateSystem<BeginFramePersistencySystem>();
             PersistentDataStorage = new PersistentDataStorage(1);
             _sceneLoadedCheckQuery = GetEntityQuery(ComponentType.ReadOnly<SceneSection>());
             
             _initEntitiesQuery = GetEntityQuery(new EntityQueryDesc(){ 
-                All = new [] {ComponentType.ReadOnly<TypeHashesToPersist>(), ComponentType.ReadOnly<SceneSection>()},
+                All = new [] {ComponentType.ReadOnly<PersistencyArchetype>(), ComponentType.ReadOnly<SceneSection>()},
                 Options = EntityQueryOptions.IncludeDisabled
             });
             
@@ -79,7 +79,7 @@ namespace DotsPersistency
                 }
             }).WithoutBurst().Run();
             
-            var uniqueSharedCompData = new List<TypeHashesToPersist>();
+            var uniqueSharedCompData = new List<PersistencyArchetype>();
             EntityManager.GetAllUniqueSharedComponentData(uniqueSharedCompData);
             uniqueSharedCompData.Remove(default);
 
@@ -117,18 +117,18 @@ namespace DotsPersistency
             }).WithoutBurst().Run();
         }
 
-        private void InitSceneSection(SceneSection sceneSection, List<TypeHashesToPersist> typeHashes, EntityCommandBuffer ecb)
+        private void InitSceneSection(SceneSection sceneSection, List<PersistencyArchetype> persistencyArchetypes, EntityCommandBuffer ecb)
         {
             if (PersistentDataStorage.IsSceneSectionInitialized(sceneSection))
             {
                 PersistentDataContainer latestState = PersistentDataStorage.GetLatestWrittenState(sceneSection, out bool isInitial);
                 for (int i = 0; i < latestState.Count; i++)
                 {
-                    PersistenceArchetypeDataLayout archetypeDataLayout = latestState.GetPersistenceArchetypeDataLayoutAtIndex(i);
-                    _initEntitiesQuery.SetSharedComponentFilter(archetypeDataLayout.ToHashList(), sceneSection);
+                    PersistencyArchetypeDataLayout dataLayout = latestState.GetPersistenceArchetypeDataLayoutAtIndex(i);
+                    _initEntitiesQuery.SetSharedComponentFilter(dataLayout.ToPersistencyArchetype(), sceneSection);
                     
-                    ecb.AddSharedComponent(_initEntitiesQuery, archetypeDataLayout);
-                    ecb.RemoveComponent<TypeHashesToPersist>(_initEntitiesQuery);
+                    ecb.AddSharedComponent(_initEntitiesQuery, dataLayout);
+                    ecb.RemoveComponent<PersistencyArchetype>(_initEntitiesQuery);
                 }
 
                 _beginFrameSystem.RequestApply(latestState);
@@ -136,16 +136,16 @@ namespace DotsPersistency
             else
             {
                 int offset = 0;
-                var archetypes = new NativeArray<PersistenceArchetypeDataLayout>(typeHashes.Count, Allocator.Persistent);
-                for (var i = 0; i < typeHashes.Count; i++)
+                var dataLayouts = new NativeArray<PersistencyArchetypeDataLayout>(persistencyArchetypes.Count, Allocator.Persistent);
+                for (var i = 0; i < persistencyArchetypes.Count; i++)
                 {
-                    var typeHashesToPersist = typeHashes[i];
+                    var typeHashesToPersist = persistencyArchetypes[i];
                     _initEntitiesQuery.SetSharedComponentFilter(typeHashesToPersist, sceneSection);
                     int amount = _initEntitiesQuery.CalculateEntityCount();
                     if (amount <= 0) 
                         continue;
                 
-                    var persistenceArchetype = new PersistenceArchetypeDataLayout()
+                    var dataLayout = new PersistencyArchetypeDataLayout()
                     {
                         Amount = _initEntitiesQuery.CalculateEntityCount(),
                         ArchetypeIndex = i,
@@ -155,26 +155,26 @@ namespace DotsPersistency
                     };
                     offset += amount * sizePerEntity;
 
-                    archetypes[i] = persistenceArchetype;
-                    ecb.AddSharedComponent(_initEntitiesQuery, persistenceArchetype);
-                    ecb.RemoveComponent<TypeHashesToPersist>(_initEntitiesQuery);
+                    dataLayouts[i] = dataLayout;
+                    ecb.AddSharedComponent(_initEntitiesQuery, dataLayout);
+                    ecb.RemoveComponent<PersistencyArchetype>(_initEntitiesQuery);
                 }
 
                 // this function takes ownership over the archetypes array
-                var initialStateContainer = PersistentDataStorage.InitializeSceneSection(sceneSection, archetypes);
+                var initialStateContainer = PersistentDataStorage.InitializeSceneSection(sceneSection, dataLayouts);
                 _beginFrameSystem.RequestInitialStatePersist(initialStateContainer);
             }
         }
 
-        internal static BlobAssetReference<BlobArray<PersistedTypeInfo>> BuildTypeInfoBlobAsset(FixedList128<ulong> stableTypeHashes, int amountEntities, out int sizePerEntity)
+        internal static BlobAssetReference<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>> BuildTypeInfoBlobAsset(FixedList128<ulong> stableTypeHashes, int amountEntities, out int sizePerEntity)
         {
-            BlobAssetReference<BlobArray<PersistedTypeInfo>> blobAssetReference;
+            BlobAssetReference<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>> blobAssetReference;
             int currentOffset = 0;
             sizePerEntity = 0;
             
             using (BlobBuilder blobBuilder = new BlobBuilder(Allocator.Temp))
             {
-                ref BlobArray<PersistedTypeInfo> blobArray = ref blobBuilder.ConstructRoot<BlobArray<PersistedTypeInfo>>();
+                ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> blobArray = ref blobBuilder.ConstructRoot<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>>();
 
                 var blobBuilderArray = blobBuilder.Allocate(ref blobArray, stableTypeHashes.Length);
 
@@ -186,7 +186,7 @@ namespace DotsPersistency
 
                     ValidateType(typeInfo);
                     
-                    blobBuilderArray[i] = new PersistedTypeInfo()
+                    blobBuilderArray[i] = new PersistencyArchetypeDataLayout.TypeInfo()
                     {
                         StableHash = stableTypeHashes[i],
                         ElementSize = typeInfo.ElementSize,
@@ -199,7 +199,7 @@ namespace DotsPersistency
                     currentOffset += sizeForComponent * amountEntities;
                 }
 
-                blobAssetReference = blobBuilder.CreateBlobAssetReference<BlobArray<PersistedTypeInfo>>(Allocator.Persistent);
+                blobAssetReference = blobBuilder.CreateBlobAssetReference<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>>(Allocator.Persistent);
             }
             
             return blobAssetReference;
@@ -208,7 +208,7 @@ namespace DotsPersistency
         [Conditional("DEBUG")]
         private static void ValidateType(TypeManager.TypeInfo typeInfo)
         {
-            if (!RuntimePersistableTypesInfo.IsSupported(typeInfo, out string notSupportedReason))
+            if (!PersistencySettings.IsSupported(typeInfo, out string notSupportedReason))
             {
                 throw new NotSupportedException(notSupportedReason);
             }
@@ -222,7 +222,6 @@ namespace DotsPersistency
 
         protected override void OnDestroy()
         {
-            base.OnDestroy();
             PersistentDataStorage.Dispose();
         }
     }

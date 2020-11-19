@@ -16,13 +16,13 @@ namespace DotsPersistency.Hybrid
     {
         public List<string> FullTypeNamesToPersist = new List<string>();
 
-        public FixedList128<ulong> GetPersistingTypeHashes(RuntimePersistableTypesInfo runtimePersistableTypesInfo)
+        public FixedList128<ulong> GetPersistingTypeHashes(PersistencySettings persistencySettings)
         {
             var retVal = new FixedList128<ulong>();
             Debug.Assert(FullTypeNamesToPersist.Count <= retVal.Capacity, $"more than {retVal.Capacity} persisted ComponentData types is not supported");
             foreach (var typeName in FullTypeNamesToPersist)
             {
-                ulong hash = runtimePersistableTypesInfo.GetStableTypeHashFromFullTypeName(typeName);
+                ulong hash = persistencySettings.GetStableTypeHashFromFullTypeName(typeName);
                 if (hash == 0)
                 {
                     continue;

@@ -9,11 +9,11 @@ using UnityEngine;
 namespace DotsPersistency
 {
     [UpdateInGroup(typeof(PresentationSystemGroup))]
-    public class EndFramePersistentDataSystem : PersistencyJobSystem
+    public class EndFramePersistencySystem : PersistencySystemBase
     {
         private EntityQuery _unloadStreamRequests;
         private EntityCommandBufferSystem _ecbSystem;
-        private PersistenceInitializationSystem _containerSystem;
+        private PersistentSceneSystem _containerSystem;
 
         protected override void OnCreate()
         {
@@ -21,7 +21,7 @@ namespace DotsPersistency
             
             InitializeReadOnly();
             _ecbSystem = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
-            _containerSystem = World.GetOrCreateSystem<PersistenceInitializationSystem>();
+            _containerSystem = World.GetOrCreateSystem<PersistentSceneSystem>();
 
             _unloadStreamRequests = GetEntityQuery(ComponentType.Exclude<RequestPersistentSceneLoaded>()
                 , ComponentType.ReadOnly<RequestSceneLoaded>(), ComponentType.ReadOnly<SceneSectionData>(), ComponentType.ReadOnly<PersistingSceneType>());

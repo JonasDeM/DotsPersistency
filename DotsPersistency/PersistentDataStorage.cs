@@ -14,7 +14,7 @@ namespace DotsPersistency
         struct ArchetypesWithStates
         {
             public int LatestWriteIndex;
-            public NativeArray<PersistenceArchetypeDataLayout> Archetypes;
+            public NativeArray<PersistencyArchetypeDataLayout> Archetypes;
             public PersistentDataContainer InitialSceneState;
             public List<PersistentDataContainer> RingBuffer;
         }
@@ -25,7 +25,7 @@ namespace DotsPersistency
         public int NonWrappedIndex => _nonWrappedIndex;
         public readonly int RingBufferSize;
         private Dictionary<SceneSection, ArchetypesWithStates> _allPersistedData = new Dictionary<SceneSection, ArchetypesWithStates>(8);
-        private IPersistencySerializer _serializer = new DefaultPersistencySerializer();
+        private IPersistentDataSerializer _serializer = new DefaultPersistentDataSerializer();
         
         public PersistentDataStorage(int ringBufferSize)
         {
@@ -72,7 +72,7 @@ namespace DotsPersistency
         }
 
         // returns initial state container, so it would be used to persist the initial state
-        public PersistentDataContainer InitializeSceneSection(SceneSection sceneSection, NativeArray<PersistenceArchetypeDataLayout> archetypes)
+        public PersistentDataContainer InitializeSceneSection(SceneSection sceneSection, NativeArray<PersistencyArchetypeDataLayout> archetypes)
         {
             Debug.Assert(!_allPersistedData.ContainsKey(sceneSection));
             var newData = new ArchetypesWithStates()
@@ -95,7 +95,7 @@ namespace DotsPersistency
             return _allPersistedData.ContainsKey(sceneSection);
         }
         
-        public void RegisterCustomSerializer(IPersistencySerializer serializer)
+        public void RegisterCustomSerializer(IPersistentDataSerializer serializer)
         {
             _serializer = serializer;
         }

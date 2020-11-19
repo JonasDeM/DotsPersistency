@@ -5,15 +5,15 @@ using Debug = UnityEngine.Debug;
 
 namespace DotsPersistency
 {
-    public abstract class PersistencyJobSystem : SystemBase
+    public abstract class PersistencySystemBase : SystemBase
     {
         private readonly Dictionary<ComponentType, EntityQuery> _queryCache = new Dictionary<ComponentType, EntityQuery>(32, new CustomComparer());
-        protected RuntimePersistableTypesInfo RuntimePersistableTypesInfo;
+        protected PersistencySettings PersistencySettings;
         
         protected void InitializeReadOnly()
         {
-            RuntimePersistableTypesInfo = RuntimePersistableTypesInfo.Load();
-            foreach (PersistableTypeInfo persistableTypeInfo in RuntimePersistableTypesInfo.AllPersistableTypeInfos)
+            PersistencySettings = PersistencySettings.Get();
+            foreach (PersistableTypeInfo persistableTypeInfo in PersistencySettings.AllPersistableTypeInfos)
             {
                 Debug.Assert(persistableTypeInfo.IsValid, "Invalid PersistableTypeInfo in the RuntimePersistableTypesInfo asset! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button)");
                 int typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash);
@@ -23,11 +23,11 @@ namespace DotsPersistency
         
         protected void InitializeReadWrite()
         {
-            RuntimePersistableTypesInfo = RuntimePersistableTypesInfo.Load();
+            PersistencySettings = PersistencySettings.Get();
             
             _queryCache.Add(ComponentType.ReadOnly<PersistenceState>(), CreatePersistenceEntityQuery());
 
-            foreach (PersistableTypeInfo persistableTypeInfo in RuntimePersistableTypesInfo.AllPersistableTypeInfos)
+            foreach (PersistableTypeInfo persistableTypeInfo in PersistencySettings.AllPersistableTypeInfos)
             {
                 Debug.Assert(persistableTypeInfo.IsValid, "Invalid PersistableTypeInfo in the RuntimePersistableTypesInfo asset! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button)");
                 int typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash);
@@ -43,7 +43,7 @@ namespace DotsPersistency
         private void CacheQuery(ComponentType type)
         {
             Debug.Assert(type.TypeIndex != -1, "PersistencyJobSystem::CacheQuery Invalid type, try force updating RuntimePersistableTypesInfo (search the asset & press the force update button)");
-            Debug.Assert(RuntimePersistableTypesInfo.IsSupported(TypeManager.GetTypeInfo(type.TypeIndex), out string reason), reason);
+            Debug.Assert(PersistencySettings.IsSupported(TypeManager.GetTypeInfo(type.TypeIndex), out string reason), reason);
             
             var query = CreatePersistenceEntityQuery(type);
             _queryCache.Add(type, query);
@@ -72,7 +72,7 @@ namespace DotsPersistency
                 {
                     All = new[]
                     {
-                        ComponentType.ReadOnly<PersistenceArchetypeDataLayout>(),
+                        ComponentType.ReadOnly<PersistencyArchetypeDataLayout>(),
                         ComponentType.ReadOnly<PersistenceState>(),
                         ComponentType.ReadOnly<SceneSection>()
                     },
@@ -86,7 +86,7 @@ namespace DotsPersistency
                 {
                     All = new[]
                     {
-                        ComponentType.ReadOnly<PersistenceArchetypeDataLayout>(),
+                        ComponentType.ReadOnly<PersistencyArchetypeDataLayout>(),
                         ComponentType.ReadOnly<PersistenceState>(),
                         ComponentType.ReadOnly<SceneSection>(),
                         persistedType
@@ -105,7 +105,7 @@ namespace DotsPersistency
             {
                 All = new[]
                 {
-                    ComponentType.ReadOnly<PersistenceArchetypeDataLayout>(),
+                    ComponentType.ReadOnly<PersistencyArchetypeDataLayout>(),
                     ComponentType.ReadOnly<PersistenceState>(),
                     ComponentType.ReadOnly<SceneSection>()
                 },
@@ -122,21 +122,21 @@ namespace DotsPersistency
 
             for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.Count; persistenceArchetypeIndex++)
             {
-                PersistenceArchetypeDataLayout persistenceArchetypeDataLayout = dataContainer.GetPersistenceArchetypeDataLayoutAtIndex(persistenceArchetypeIndex);
-                ref BlobArray<PersistedTypeInfo> typeInfoArray = ref persistenceArchetypeDataLayout.PersistedTypeInfoArrayRef.Value;
+                PersistencyArchetypeDataLayout dataLayout = dataContainer.GetPersistenceArchetypeDataLayoutAtIndex(persistenceArchetypeIndex);
+                ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
                 var dataForArchetype = dataContainer.GetSubArrayAtIndex(persistenceArchetypeIndex);
                 
                 for (int typeInfoIndex = 0; typeInfoIndex < typeInfoArray.Length; typeInfoIndex++)
                 {
                     // type info
-                    PersistedTypeInfo typeInfo = typeInfoArray[typeInfoIndex];
+                    PersistencyArchetypeDataLayout.TypeInfo typeInfo = typeInfoArray[typeInfoIndex];
                     ComponentType runtimeType = ComponentType.ReadOnly(TypeManager.GetTypeIndexFromStableTypeHash(typeInfo.StableHash));
                     int stride = typeInfo.ElementSize * typeInfo.MaxElements + PersistenceMetaData.SizeOfStruct;
-                    int byteSize = persistenceArchetypeDataLayout.Amount * stride;
+                    int byteSize = dataLayout.Amount * stride;
                     
                     // query
                     var query = GetCachedQuery(runtimeType);
-                    query.SetSharedComponentFilter(sceneSection, persistenceArchetypeDataLayout);
+                    query.SetSharedComponentFilter(sceneSection, dataLayout);
                     
                     // Grab containers
                     var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
@@ -186,25 +186,25 @@ namespace DotsPersistency
 
             for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.Count; persistenceArchetypeIndex++)
             {
-                PersistenceArchetypeDataLayout persistenceArchetypeDataLayout = dataContainer.GetPersistenceArchetypeDataLayoutAtIndex(persistenceArchetypeIndex);
-                ref BlobArray<PersistedTypeInfo> typeInfoArray = ref persistenceArchetypeDataLayout.PersistedTypeInfoArrayRef.Value;
+                PersistencyArchetypeDataLayout dataLayout = dataContainer.GetPersistenceArchetypeDataLayoutAtIndex(persistenceArchetypeIndex);
+                ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
                 var dataForArchetype = dataContainer.GetSubArrayAtIndex(persistenceArchetypeIndex);
                 
                 for (int typeInfoIndex = 0; typeInfoIndex < typeInfoArray.Length; typeInfoIndex++)
                 {
                     // type info
-                    PersistedTypeInfo typeInfo = typeInfoArray[typeInfoIndex];
+                    PersistencyArchetypeDataLayout.TypeInfo typeInfo = typeInfoArray[typeInfoIndex];
                     ComponentType runtimeType = ComponentType.FromTypeIndex(TypeManager.GetTypeIndexFromStableTypeHash(typeInfo.StableHash));
                     int stride = typeInfo.ElementSize * typeInfo.MaxElements + PersistenceMetaData.SizeOfStruct;
-                    int byteSize = persistenceArchetypeDataLayout.Amount * stride;
+                    int byteSize = dataLayout.Amount * stride;
                     
                     // query
                     var query = GetCachedQuery(runtimeType);
-                    query.SetSharedComponentFilter(sceneSection, persistenceArchetypeDataLayout);
+                    query.SetSharedComponentFilter(sceneSection, dataLayout);
                     var excludeType = runtimeType;
                     excludeType.AccessModeType = ComponentType.AccessMode.Exclude;
                     var excludeQuery = GetCachedQuery(excludeType);
-                    excludeQuery.SetSharedComponentFilter(sceneSection, persistenceArchetypeDataLayout);
+                    excludeQuery.SetSharedComponentFilter(sceneSection, dataLayout);
                     
                     // Grab read-only containers
                     var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);

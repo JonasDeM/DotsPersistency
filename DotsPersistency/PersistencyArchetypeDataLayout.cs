@@ -12,16 +12,25 @@ using UnityEngine;
 namespace DotsPersistency
 {
     // A persisting entity needs this component
-    // It holds which data it needs to persist
-    public struct PersistenceArchetypeDataLayout : ISharedComponentData
+    // It holds which data it needs to persist & where it needs to write it to
+    public struct PersistencyArchetypeDataLayout : ISharedComponentData
     {
-        public BlobAssetReference<BlobArray<PersistedTypeInfo>> PersistedTypeInfoArrayRef;
+        public BlobAssetReference<BlobArray<TypeInfo>> PersistedTypeInfoArrayRef;
         public int Amount;
         public int Offset; // Byte Offset in the Byte Array which contains all data for 1 SceneSection
         public int ArchetypeIndex; // Index specifically for this SceneSection
         public int SizePerEntity;
 
-        public TypeHashesToPersist ToHashList()
+        public struct TypeInfo
+        {
+            public ulong StableHash;
+            public int ElementSize;
+            public int MaxElements;
+            public bool IsBuffer;
+            public int Offset; // Byte Offset in the Byte Sub Array which contains all data for a PersistenceArchetype in 1 SceneSection
+        }
+        
+        public PersistencyArchetype ToPersistencyArchetype()
         {
             FixedList128<ulong> list = new FixedList128<ulong>();
             for (int i = 0; i < PersistedTypeInfoArrayRef.Value.Length; i++)
@@ -29,12 +38,13 @@ namespace DotsPersistency
                 list.Add(PersistedTypeInfoArrayRef.Value[i].StableHash);
             }
 
-            return new TypeHashesToPersist { TypeHashList = list };
+            return new PersistencyArchetype { TypeHashList = list };
         }
     }
     
+    // This component gets replaced bye PersistencyArchetypeDataLayout on the first frame an entity is loaded
     [Serializable]
-    public struct TypeHashesToPersist : ISharedComponentData
+    public struct PersistencyArchetype : ISharedComponentData
     {
         // A unity bug makes me have to use this temporary workaround instead of just using FixedList as a field
         // https://fogbugz.unity3d.com/default.asp?1250205_h3i38krgoh6ibpc9
@@ -63,15 +73,6 @@ namespace DotsPersistency
         [SerializeField] private FixedArray16<ulong> _array16;
     }
 
-    public struct PersistedTypeInfo
-    {
-        public ulong StableHash;
-        public int ElementSize;
-        public int MaxElements;
-        public bool IsBuffer;
-        public int Offset; // Byte Offset in the Byte Sub Array which contains all data for a PersistenceArchetype in 1 SceneSection
-    }
-    
     // A persisting entity needs this component
     // It holds the index into the sub array that holds the persisted data
     // Entities their data will reside in the same arrays if they have the same SharedComponentData for SceneSection & PersistenceArchetypeDataLayout
@@ -85,7 +86,7 @@ namespace DotsPersistency
         }
     }
     
-    // This struct sits in front of every data block in the persisted data array
+    // This struct sits in front of every data block in a persisted data array
     public struct PersistenceMetaData
     {
         public ushort Data;

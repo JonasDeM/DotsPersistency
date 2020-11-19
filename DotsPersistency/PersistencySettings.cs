@@ -20,12 +20,12 @@ namespace DotsPersistency
         public bool IsValid => MaxElements > 0 && StableTypeHash != 0 && !string.IsNullOrEmpty(FullTypeName);
     }
     
-    public class RuntimePersistableTypesInfo : ScriptableObject
+    public class PersistencySettings : ScriptableObject
     {
-        public const string RESOURCE_FOLDER = "Assets/DotsPersistency/Resources";
-        public const string FOLDER = RESOURCE_FOLDER + "/DotsPersistency";
-        public const string RELATIVE_FILE_PATH_NO_EXT = "DotsPersistency/UserDefinedRuntimePersistableTypes";
-        public const string RELATIVE_FILE_PATH = RELATIVE_FILE_PATH_NO_EXT+".asset";        
+        private const string ResourceFolder = "Assets/DotsPersistency/Resources";
+        private const string Folder = ResourceFolder + "/DotsPersistency";
+        private const string RelativeFilePathNoExt = "DotsPersistency/PersistencySettings";
+        private const string RelativeFilePath = RelativeFilePathNoExt+".asset";        
         
         [SerializeField]
         private List<PersistableTypeInfo> _allPersistableTypeInfos = new List<PersistableTypeInfo>();
@@ -43,16 +43,10 @@ namespace DotsPersistency
             return 0;
         }
         
-        public static RuntimePersistableTypesInfo Load()
+        public static PersistencySettings Get()
         {
             // This only actually loads it the first time, so multiple calls are totally fine
-            return Resources.Load<RuntimePersistableTypesInfo>(RELATIVE_FILE_PATH_NO_EXT);
-        }
-        
-        public static ResourceRequest LoadAsync()
-        {
-            // This only actually loads it the first time, so multiple calls are totally fine
-            return Resources.LoadAsync<RuntimePersistableTypesInfo>(RELATIVE_FILE_PATH_NO_EXT);
+            return Resources.Load<PersistencySettings>(RelativeFilePathNoExt);
         }
 
         public static bool IsSupported(TypeManager.TypeInfo info, out string notSupportedReason)
@@ -86,15 +80,15 @@ namespace DotsPersistency
         }
         
 #if UNITY_EDITOR
-        public static RuntimePersistableTypesInfo GetOrCreateInEditor()
+        public static PersistencySettings GetOrCreateInEditor()
         {
-            const string assetPath = RESOURCE_FOLDER + "/" + RELATIVE_FILE_PATH;
+            const string assetPath = ResourceFolder + "/" + RelativeFilePath;
             
-            var runtimeVersion = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimePersistableTypesInfo>(assetPath);
+            var runtimeVersion = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(assetPath);
             if (runtimeVersion == null)
             {
-                runtimeVersion = CreateInstance<RuntimePersistableTypesInfo>();
-                System.IO.Directory.CreateDirectory(FOLDER);
+                runtimeVersion = CreateInstance<PersistencySettings>();
+                System.IO.Directory.CreateDirectory(Folder);
                 UnityEditor.AssetDatabase.CreateAsset(runtimeVersion, assetPath);
             }
 

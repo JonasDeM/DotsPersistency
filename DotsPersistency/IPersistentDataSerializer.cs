@@ -9,7 +9,7 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency
 {
-    public interface IPersistencySerializer
+    public interface IPersistentDataSerializer
     {
         string GetResourcePath(SceneSection sceneSection);
 
@@ -17,7 +17,7 @@ namespace DotsPersistency
         void ReadContainerData(PersistentDataContainer container);
     }
     
-    public class DefaultPersistencySerializer : IPersistencySerializer
+    public class DefaultPersistentDataSerializer : IPersistentDataSerializer
     {
         public string GetResourcePath(SceneSection sceneSection)
         {

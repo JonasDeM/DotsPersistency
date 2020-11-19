@@ -1,7 +1,6 @@
 ﻿// Author: Jonas De Maeseneer
 
 using System.Collections.Generic;
-using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Scenes;
@@ -12,7 +11,7 @@ namespace DotsPersistency
     [AlwaysUpdateSystem]
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateAfter(typeof(SceneSystemGroup))]
-    public class BeginFramePersistentDataSystem : PersistencyJobSystem
+    public class BeginFramePersistencySystem : PersistencySystemBase
     {
         private EntityCommandBufferSystem _ecbSystem;
 

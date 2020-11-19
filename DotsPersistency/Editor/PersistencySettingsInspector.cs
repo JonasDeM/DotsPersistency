@@ -1,28 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using JetBrains.Annotations;
-using Unity.Entities;
+﻿using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
-using UnityEngine.WSA;
 
 namespace DotsPersistency.Editor
 {
-    [CustomEditor(typeof(RuntimePersistableTypesInfo))]
-    public class PersistableTypesInfoInspector : UnityEditor.Editor
+    [CustomEditor(typeof(PersistencySettings))]
+    public class PersistencySettingsInspector : UnityEditor.Editor
     {
         private List<string> _allAvailableTypes;
         private ReorderableList _reorderableList;
-        private RuntimePersistableTypesInfo _persistableTypesInfo;
+        private PersistencySettings _persistableTypesInfo;
         
         private void OnEnable()
         {
-            _persistableTypesInfo = (RuntimePersistableTypesInfo) target;
+            _persistableTypesInfo = (PersistencySettings) target;
             _reorderableList = new ReorderableList(_persistableTypesInfo.AllPersistableTypeInfos, typeof(PersistableTypeInfo));
             _reorderableList.drawHeaderCallback = DrawHeaderCallback;
             _reorderableList.draggable = false;
@@ -40,7 +33,7 @@ namespace DotsPersistency.Editor
 
         private void OnAddCallback(ReorderableList list)
         {
-            FindPersistableEcsType window = EditorWindow.GetWindow<FindPersistableEcsType>();
+            FindPersistableTypeWindow window = EditorWindow.GetWindow<FindPersistableTypeWindow>();
             window.OnTypeChosen = persistableTypeInfo =>
             {
                 int existingIndex = _persistableTypesInfo.AllPersistableTypeInfos.FindIndex(info => info.FullTypeName == persistableTypeInfo.FullTypeName);
@@ -70,7 +63,7 @@ namespace DotsPersistency.Editor
                 {
                     var oldInfo = _persistableTypesInfo.AllPersistableTypeInfos[i];
                     int maxElements = oldInfo.MaxElements; // this can be chosen by the user, so keep this info
-                    if (RuntimePersistableTypesInfo.CreatePersistableTypeInfoFromFullTypeName(oldInfo.FullTypeName, out PersistableTypeInfo updatedInfo))
+                    if (PersistencySettings.CreatePersistableTypeInfoFromFullTypeName(oldInfo.FullTypeName, out PersistableTypeInfo updatedInfo))
                     {
                         updatedInfo.MaxElements = updatedInfo.IsBuffer ? maxElements : 1;
                         _persistableTypesInfo.AllPersistableTypeInfos[i] = updatedInfo;
@@ -118,92 +111,6 @@ namespace DotsPersistency.Editor
         private void DrawHeaderCallback(Rect rect)
         {
             EditorGUI.LabelField(rect, "Persistable Types");
-        }
-    }
-    
-    internal class FindPersistableEcsType : EditorWindow
-    {
-        private List<Type> _allAvailableTypes;
-        internal delegate void TypeSelectedDelegate(PersistableTypeInfo persistableTypeInfo);
-        internal TypeSelectedDelegate OnTypeChosen = persistableTypeInfo => { };
-
-        [SerializeField]
-        private Vector2 _scrollPos;
-        [SerializeField]
-        private string _currentFilter = "";
-        [SerializeField]
-        private bool _showUnityTypes = false;
-        [SerializeField]
-        private bool _showTestTypes = false;
-        
-        private void OnEnable()
-        {
-            UpdateTypeList();
-            titleContent = new GUIContent("Choose a type");
-        }
-
-        private void OnGUI()
-        {
-            _currentFilter = EditorGUILayout.TextField("Filter: ", _currentFilter);
-            EditorGUI.BeginChangeCheck();
-            _showUnityTypes = EditorGUILayout.Toggle("Show Unity Types", _showUnityTypes);
-            _showTestTypes = EditorGUILayout.Toggle("Show Test Types", _showTestTypes);
-            if (EditorGUI.EndChangeCheck())
-            {
-                UpdateTypeList();
-            }
-            List<string> filterValues = _currentFilter.Split(' ').ToList();
-            
-            _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
-            bool allHidden = true;
-            foreach (Type ecsType in _allAvailableTypes)
-            {
-                string fullTypeName = ecsType.FullName;
-                bool hide = filterValues.Any(filterValue => fullTypeName.IndexOf(filterValue, StringComparison.InvariantCultureIgnoreCase) == -1);
-                
-                var oldAlignment =  GUI.skin.button.alignment;
-                GUI.skin.button.alignment = TextAnchor.MiddleLeft;
-                if (!hide && GUILayout.Button(fullTypeName))
-                {
-                    if (RuntimePersistableTypesInfo.CreatePersistableTypeInfoFromFullTypeName(fullTypeName, out PersistableTypeInfo newInfo))
-                    {
-                        OnTypeChosen(newInfo);
-                        Close();
-                    }
-                    else
-                    {
-                        Debug.LogError($"Something went wrong while trying to add {fullTypeName}.");
-                    }
-                }
-                GUI.skin.button.alignment = oldAlignment;
-                allHidden &= hide;
-            }
-            if (allHidden)
-            {
-                EditorGUILayout.HelpBox("No types found. Try changing the options above.", MessageType.Info);
-            }
-            EditorGUILayout.EndScrollView();
-        }
-
-        private void UpdateTypeList()
-        {
-            _allAvailableTypes = TypeManager.GetAllTypes()
-                .Where(info => info.Type != null && RuntimePersistableTypesInfo.IsSupported(info, out _))
-                .Select(info => info.Type)
-                .Where(type => type.Namespace == null || type.Namespace != typeof(PersistenceState).Namespace)
-                .Where(type => (_showUnityTypes || !IsUnityType(type)) && (_showTestTypes || !IsTestType(type)))
-                .ToList();
-            _allAvailableTypes.Sort((type, type1) => string.CompareOrdinal(type.FullName, type1.FullName));
-        }
-
-        private static bool IsUnityType(Type type)
-        {
-            return type.Namespace != null && type.Namespace.Contains("Unity");
-        }
-        
-        private static bool IsTestType(Type type)
-        {
-            return type.Namespace != null && type.Namespace.Contains("Test");
         }
     }
 }

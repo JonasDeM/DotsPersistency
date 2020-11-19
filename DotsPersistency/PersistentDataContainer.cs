@@ -8,7 +8,7 @@ namespace DotsPersistency
     public struct PersistentDataContainer : IDisposable
     {
         private NativeArray<byte> _data;
-        private NativeArray<PersistenceArchetypeDataLayout> _persistenceArchetypes;
+        private NativeArray<PersistencyArchetypeDataLayout> _persistenceArchetypes;
             
         public SceneSection SceneSection => _sceneSection;
         private SceneSection _sceneSection;
@@ -22,7 +22,7 @@ namespace DotsPersistency
 
         public int Count => _persistenceArchetypes.Length;
 
-        public PersistentDataContainer(SceneSection sceneSection, NativeArray<PersistenceArchetypeDataLayout> persistenceArchetypes, Allocator allocator)
+        public PersistentDataContainer(SceneSection sceneSection, NativeArray<PersistencyArchetypeDataLayout> persistenceArchetypes, Allocator allocator)
         {
             _sceneSection = sceneSection;
             _tick = 0;
@@ -36,7 +36,7 @@ namespace DotsPersistency
             _data = new NativeArray<byte>(size, allocator);
         }
             
-        public PersistenceArchetypeDataLayout GetPersistenceArchetypeDataLayoutAtIndex(int index)
+        public PersistencyArchetypeDataLayout GetPersistenceArchetypeDataLayoutAtIndex(int index)
         {
             return _persistenceArchetypes[index];
         }
