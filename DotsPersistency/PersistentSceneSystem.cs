@@ -18,12 +18,20 @@ namespace DotsPersistency
         private EntityQuery _initEntitiesQuery;
         private EntityQuery _sceneLoadedCheckQuery;
         public PersistentDataStorage PersistentDataStorage { get; private set; }
+        protected PersistencySettings PersistencySettings;
 
         private EntityCommandBufferSystem _ecbSystem;
         private BeginFramePersistencySystem _beginFrameSystem;
 
         protected override void OnCreate()
         {
+            PersistencySettings = PersistencySettings.Get();
+            if (PersistencySettings == null)
+            {
+                Enabled = false;
+                Debug.LogError(PersistencySettings.NotFoundMessage);
+            }
+            
             _beginFrameSystem = World.GetOrCreateSystem<BeginFramePersistencySystem>();
             PersistentDataStorage = new PersistentDataStorage(1);
             _sceneLoadedCheckQuery = GetEntityQuery(ComponentType.ReadOnly<SceneSection>());
@@ -139,8 +147,8 @@ namespace DotsPersistency
                 var dataLayouts = new NativeArray<PersistencyArchetypeDataLayout>(persistencyArchetypes.Count, Allocator.Persistent);
                 for (var i = 0; i < persistencyArchetypes.Count; i++)
                 {
-                    var typeHashesToPersist = persistencyArchetypes[i];
-                    _initEntitiesQuery.SetSharedComponentFilter(typeHashesToPersist, sceneSection);
+                    var persistencyArchetype = persistencyArchetypes[i];
+                    _initEntitiesQuery.SetSharedComponentFilter(persistencyArchetype, sceneSection);
                     int amount = _initEntitiesQuery.CalculateEntityCount();
                     if (amount <= 0) 
                         continue;
@@ -149,7 +157,7 @@ namespace DotsPersistency
                     {
                         Amount = _initEntitiesQuery.CalculateEntityCount(),
                         ArchetypeIndex = i,
-                        PersistedTypeInfoArrayRef = BuildTypeInfoBlobAsset(typeHashesToPersist.TypeHashList, amount, out int sizePerEntity),
+                        PersistedTypeInfoArrayRef = persistencyArchetype.BuildTypeInfoBlobAsset(PersistencySettings, amount, out int sizePerEntity),
                         SizePerEntity = sizePerEntity,
                         Offset = offset
                     };
@@ -163,54 +171,6 @@ namespace DotsPersistency
                 // this function takes ownership over the archetypes array
                 var initialStateContainer = PersistentDataStorage.InitializeSceneSection(sceneSection, dataLayouts);
                 _beginFrameSystem.RequestInitialStatePersist(initialStateContainer);
-            }
-        }
-
-        internal static BlobAssetReference<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>> BuildTypeInfoBlobAsset(FixedList128<ulong> stableTypeHashes, int amountEntities, out int sizePerEntity)
-        {
-            BlobAssetReference<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>> blobAssetReference;
-            int currentOffset = 0;
-            sizePerEntity = 0;
-            
-            using (BlobBuilder blobBuilder = new BlobBuilder(Allocator.Temp))
-            {
-                ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> blobArray = ref blobBuilder.ConstructRoot<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>>();
-
-                var blobBuilderArray = blobBuilder.Allocate(ref blobArray, stableTypeHashes.Length);
-
-                for (int i = 0; i < blobBuilderArray.Length; i++)
-                {
-                    var typeInfo = TypeManager.GetTypeInfo(TypeManager.GetTypeIndexFromStableTypeHash(stableTypeHashes[i]));
-
-                    int maxElements = typeInfo.Category == TypeManager.TypeCategory.BufferData ? typeInfo.BufferCapacity : 1;
-
-                    ValidateType(typeInfo);
-                    
-                    blobBuilderArray[i] = new PersistencyArchetypeDataLayout.TypeInfo()
-                    {
-                        StableHash = stableTypeHashes[i],
-                        ElementSize = typeInfo.ElementSize,
-                        IsBuffer = typeInfo.Category == TypeManager.TypeCategory.BufferData,
-                        MaxElements = maxElements,
-                        Offset = currentOffset
-                    };
-                    int sizeForComponent = (typeInfo.ElementSize * maxElements) + sizeof(ushort); // PersistenceMetaData is one ushort
-                    sizePerEntity += sizeForComponent; 
-                    currentOffset += sizeForComponent * amountEntities;
-                }
-
-                blobAssetReference = blobBuilder.CreateBlobAssetReference<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>>(Allocator.Persistent);
-            }
-            
-            return blobAssetReference;
-        }
-
-        [Conditional("DEBUG")]
-        private static void ValidateType(TypeManager.TypeInfo typeInfo)
-        {
-            if (!PersistencySettings.IsSupported(typeInfo, out string notSupportedReason))
-            {
-                throw new NotSupportedException(notSupportedReason);
             }
         }
         

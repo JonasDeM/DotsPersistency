@@ -23,36 +23,26 @@ namespace DotsPersistency
 
         public struct TypeInfo
         {
-            public ulong StableHash;
+            public PersistableTypeHandle PersistableTypeHandle; // index in PersistencySettings its type list
             public int ElementSize;
             public int MaxElements;
             public bool IsBuffer;
             public int Offset; // Byte Offset in the Byte Sub Array which contains all data for a PersistenceArchetype in 1 SceneSection
         }
-        
-        public PersistencyArchetype ToPersistencyArchetype()
-        {
-            FixedList128<ulong> list = new FixedList128<ulong>();
-            for (int i = 0; i < PersistedTypeInfoArrayRef.Value.Length; i++)
-            {
-                list.Add(PersistedTypeInfoArrayRef.Value[i].StableHash);
-            }
-
-            return new PersistencyArchetype { TypeHashList = list };
-        }
     }
     
-    // This component gets replaced bye PersistencyArchetypeDataLayout on the first frame an entity is loaded
+    // This component gets replaced by PersistencyArchetypeDataLayout on the first frame an entity is loaded
     [Serializable]
     public struct PersistencyArchetype : ISharedComponentData
     {
         // A unity bug makes me have to use this temporary workaround instead of just using FixedList as a field
         // https://fogbugz.unity3d.com/default.asp?1250205_h3i38krgoh6ibpc9
-        public FixedList128<ulong> TypeHashList
+        // Contains indices into the type info list in PersistencySettings
+        public FixedList128<PersistableTypeHandle> PersistableTypeHandles  // can store 63
         {
             get
             {
-                FixedList128<ulong> retVal = new FixedList128<ulong>();
+                FixedList128<PersistableTypeHandle> retVal = new FixedList128<PersistableTypeHandle>();
                 for (int i = 0; i < _length; i++)
                 {
                     retVal.Add(_array16[i]);
@@ -61,16 +51,16 @@ namespace DotsPersistency
             }
             set
             {
-                _length = (short)value.Length;
+                _length = (ushort)value.Length;
                 for (int i = 0; i < value.Length; i++)
                 {
                     _array16[i] = value[i];
                 }
             }
-        } // can store 15 type hashes
+        }
 
-        [SerializeField] private short _length;
-        [SerializeField] private FixedArray16<ulong> _array16;
+        [SerializeField] private ushort _length;
+        [SerializeField] private FixedArray16<PersistableTypeHandle> _array16;
     }
 
     // A persisting entity needs this component

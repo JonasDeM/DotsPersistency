@@ -9,16 +9,16 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency.Hybrid
 {
-    [ConverterVersion("Jonas", 4)]
+    [ConverterVersion("Jonas", 7)]
     [UpdateInGroup(typeof(GameObjectAfterConversionGroup))]
     public class PersistencyConversionSystem : GameObjectConversionSystem
     {
         protected override void OnUpdate()
         {
-            var typeHashesFile = PersistencySettings.Get();
-            if (typeHashesFile == null)
+            var settings = PersistencySettings.Get();
+            if (settings == null)
             {
-                Debug.LogError("No RuntimePersistableTypesInfo asset found! (Nothing will persist)");
+                Debug.LogWarning(PersistencySettings.NotFoundMessage);
                 return;
             }
             
@@ -27,7 +27,8 @@ namespace DotsPersistency.Hybrid
                 Entity e = GetPrimaryEntity(persistencyAuthoring);
                 DstEntityManager.AddSharedComponentData(e, new PersistencyArchetype()
                 {
-                    TypeHashList = persistencyAuthoring.GetPersistingTypeHashes(typeHashesFile)
+                    // these type handles are stable as long as the PersistencySettings asset doesn't change, but we declare it as an asset dependency so it works out
+                    PersistableTypeHandles = persistencyAuthoring.GetPersistableTypeHandles(settings) 
                 });
                 DstEntityManager.AddComponentData(e, new PersistenceState()
                 {
@@ -37,25 +38,25 @@ namespace DotsPersistency.Hybrid
         }
     }
     
-    [ConverterVersion("Jonas", 5)]
+    [ConverterVersion("Jonas", 7)]
     [UpdateInGroup(typeof(GameObjectDeclareReferencedObjectsGroup))]
     public class PersistencyConversionDependencySystem : GameObjectConversionSystem
     {
         protected override void OnUpdate()
         {
-            var typeHashesFile = PersistencySettings.Get();
-            if (typeHashesFile == null)
+            var settings = PersistencySettings.Get();
+            if (settings == null)
             {
-                Debug.LogError("No RuntimePersistableTypesInfo asset found! (Nothing will persist)");
+                Debug.LogWarning(PersistencySettings.NotFoundMessage);
                 return;
             }
             
             Entities.ForEach((PersistencyAuthoring persistencyAuthoring) =>
             {
-                DeclareAssetDependency(persistencyAuthoring.gameObject, typeHashesFile);
+                DeclareAssetDependency(persistencyAuthoring.gameObject, settings);
                 Entities.ForEach((PersistencyAuthoring other) =>
                 {
-                    if (persistencyAuthoring.GetStablePersistenceArchetypeHash() == other.GetStablePersistenceArchetypeHash()
+                    if (persistencyAuthoring.GetHashOfTypeCombination() == other.GetHashOfTypeCombination()
                         && persistencyAuthoring != other)
                     {
                         DeclareDependency(persistencyAuthoring, other);

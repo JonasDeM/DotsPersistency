@@ -16,23 +16,25 @@ namespace DotsPersistency.Hybrid
     {
         public List<string> FullTypeNamesToPersist = new List<string>();
 
-        public FixedList128<ulong> GetPersistingTypeHashes(PersistencySettings persistencySettings)
+        public FixedList128<PersistableTypeHandle> GetPersistableTypeHandles(PersistencySettings persistencySettings)
         {
-            var retVal = new FixedList128<ulong>();
-            Debug.Assert(FullTypeNamesToPersist.Count <= retVal.Capacity, $"more than {retVal.Capacity} persisted ComponentData types is not supported");
-            foreach (var typeName in FullTypeNamesToPersist)
+            var retVal = new FixedList128<PersistableTypeHandle>();
+            Debug.Assert(FullTypeNamesToPersist.Count <= retVal.Capacity, $"More than {retVal.Capacity} persisted ComponentData types is not supported");
+            foreach (var fullTypeName in FullTypeNamesToPersist)
             {
-                ulong hash = persistencySettings.GetStableTypeHashFromFullTypeName(typeName);
-                if (hash == 0)
+                if (persistencySettings.GetPersistableTypeHandleFromFullTypeName(fullTypeName, out PersistableTypeHandle typeHandle))
                 {
-                    continue;
+                    retVal.Add(typeHandle); 
                 }
-                retVal.Add(hash); 
+                else
+                {
+                    Debug.LogWarning($"Ignoring non-persistable type {fullTypeName} (Did it get removed from PersistencySettings?)");
+                }
             }
             return retVal;
         }
 
-        public Hash128 GetStablePersistenceArchetypeHash()
+        public Hash128 GetHashOfTypeCombination()
         {
             ulong hash1 = 0;
             ulong hash2 = 0;

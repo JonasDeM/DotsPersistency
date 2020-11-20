@@ -40,7 +40,7 @@ namespace DotsPersistency
                 Directory.CreateDirectory(folderPath);
             }
             
-            using (var fileStream = new FileStream(path, FileMode.Truncate))
+            using (var fileStream = new FileStream(path, FileMode.Create))
             {
                 var dataArray = container.GetRawData().ToArray();
                 fileStream.Write(dataArray, 0, dataArray.Length);

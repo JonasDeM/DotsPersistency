@@ -12,17 +12,30 @@ namespace DotsPersistency.Editor
     public class PersistencyBehaviourEditor : UnityEditor.Editor
     {
         List<string> _cachedFullTypeNames;
-        private PersistencySettings _runTimeTypeInfos;
+        private PersistencySettings _persistencySettings;
 
         private void OnEnable()
         {
-            _runTimeTypeInfos = PersistencySettings.GetOrCreateInEditor();
-            _cachedFullTypeNames = _runTimeTypeInfos.AllPersistableTypeInfos.Select(info => info.FullTypeName).ToList();
-            _cachedFullTypeNames.Add("");
+            _persistencySettings = PersistencySettings.Get();
+            if (_persistencySettings)
+            {
+                _cachedFullTypeNames = _persistencySettings.AllPersistableTypeInfos.Select(info => info.FullTypeName).ToList();
+                _cachedFullTypeNames.Add("");
+            }
         }
 
         public override void OnInspectorGUI()
         {
+            if (_persistencySettings == null)
+            {
+                if (GUILayout.Button("Create PersistencySettings file"))
+                {
+                    PersistencySettings.CreateInEditor();
+                    OnEnable();
+                }
+                return;
+            }
+            
             var singleTarget = ((PersistencyAuthoring) target);
             string index = singleTarget.CalculateArrayIndex().ToString();
             string hashAmount = singleTarget.FullTypeNamesToPersist.Count.ToString();
@@ -59,7 +72,7 @@ namespace DotsPersistency.Editor
                     EditorGUILayout.BeginHorizontal();
                     int newSelectedIndex = EditorGUILayout.Popup($"Type {i}", selectedIndex,
                         _cachedFullTypeNames.Select((s =>
-                            string.IsNullOrEmpty(s) ? "None" : ComponentType.FromTypeIndex(TypeManager.GetTypeIndexFromStableTypeHash(_runTimeTypeInfos.GetStableTypeHashFromFullTypeName(s))).ToString())).ToArray());
+                            string.IsNullOrEmpty(s) ? "None" : _persistencySettings.GetPrettyNameInEditor(s))).ToArray());
 
                     if (GUILayout.Button("-", GUILayout.Width(18)))
                     {

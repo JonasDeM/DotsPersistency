@@ -13,25 +13,36 @@ namespace DotsPersistency
         protected void InitializeReadOnly()
         {
             PersistencySettings = PersistencySettings.Get();
+            if (PersistencySettings == null)
+            {
+                Enabled = false;
+                Debug.LogWarning(PersistencySettings.NotFoundMessage);
+                return;
+            }
+            
             foreach (PersistableTypeInfo persistableTypeInfo in PersistencySettings.AllPersistableTypeInfos)
             {
-                Debug.Assert(persistableTypeInfo.IsValid, "Invalid PersistableTypeInfo in the RuntimePersistableTypesInfo asset! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button)");
-                int typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash);
-                CacheQuery(ComponentType.ReadOnly(typeIndex));
+                persistableTypeInfo.ValidityCheck();
+                CacheQuery(ComponentType.ReadOnly(persistableTypeInfo.TypeManagerTypeIndex));
             }
         }
         
         protected void InitializeReadWrite()
         {
             PersistencySettings = PersistencySettings.Get();
+            if (PersistencySettings == null)
+            {
+                Enabled = false;
+                Debug.LogWarning(PersistencySettings.NotFoundMessage);
+                return;
+            }
             
             _queryCache.Add(ComponentType.ReadOnly<PersistenceState>(), CreatePersistenceEntityQuery());
 
             foreach (PersistableTypeInfo persistableTypeInfo in PersistencySettings.AllPersistableTypeInfos)
             {
-                Debug.Assert(persistableTypeInfo.IsValid, "Invalid PersistableTypeInfo in the RuntimePersistableTypesInfo asset! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button)");
-                int typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash);
-                ComponentType componentType = ComponentType.FromTypeIndex(typeIndex);
+                persistableTypeInfo.ValidityCheck();
+                ComponentType componentType = ComponentType.FromTypeIndex(persistableTypeInfo.TypeManagerTypeIndex);
                 ComponentType excludeComponentType = componentType;
                 excludeComponentType.AccessModeType = ComponentType.AccessMode.Exclude;
                 
@@ -130,7 +141,7 @@ namespace DotsPersistency
                 {
                     // type info
                     PersistencyArchetypeDataLayout.TypeInfo typeInfo = typeInfoArray[typeInfoIndex];
-                    ComponentType runtimeType = ComponentType.ReadOnly(TypeManager.GetTypeIndexFromStableTypeHash(typeInfo.StableHash));
+                    ComponentType runtimeType = ComponentType.ReadOnly(PersistencySettings.GetTypeIndex(typeInfo.PersistableTypeHandle));
                     int stride = typeInfo.ElementSize * typeInfo.MaxElements + PersistenceMetaData.SizeOfStruct;
                     int byteSize = dataLayout.Amount * stride;
                     
@@ -194,7 +205,7 @@ namespace DotsPersistency
                 {
                     // type info
                     PersistencyArchetypeDataLayout.TypeInfo typeInfo = typeInfoArray[typeInfoIndex];
-                    ComponentType runtimeType = ComponentType.FromTypeIndex(TypeManager.GetTypeIndexFromStableTypeHash(typeInfo.StableHash));
+                    ComponentType runtimeType = ComponentType.FromTypeIndex(PersistencySettings.GetTypeIndex(typeInfo.PersistableTypeHandle));
                     int stride = typeInfo.ElementSize * typeInfo.MaxElements + PersistenceMetaData.SizeOfStruct;
                     int byteSize = dataLayout.Amount * stride;
                     

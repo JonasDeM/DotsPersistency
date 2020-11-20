@@ -10,7 +10,7 @@ namespace DotsPersistency.Editor
     internal class FindPersistableTypeWindow : EditorWindow
     {
         private List<Type> _allAvailableTypes;
-        internal delegate void TypeSelectedDelegate(PersistableTypeInfo persistableTypeInfo);
+        internal delegate void TypeSelectedDelegate(string fullTypeName);
         internal TypeSelectedDelegate OnTypeChosen = persistableTypeInfo => { };
 
         [SerializeField]
@@ -51,15 +51,8 @@ namespace DotsPersistency.Editor
                 GUI.skin.button.alignment = TextAnchor.MiddleLeft;
                 if (!hide && GUILayout.Button(fullTypeName))
                 {
-                    if (PersistencySettings.CreatePersistableTypeInfoFromFullTypeName(fullTypeName, out PersistableTypeInfo newInfo))
-                    {
-                        OnTypeChosen(newInfo);
-                        Close();
-                    }
-                    else
-                    {
-                        Debug.LogError($"Something went wrong while trying to add {fullTypeName}.");
-                    }
+                    OnTypeChosen(fullTypeName);
+                    Close();
                 }
                 GUI.skin.button.alignment = oldAlignment;
                 allHidden &= hide;

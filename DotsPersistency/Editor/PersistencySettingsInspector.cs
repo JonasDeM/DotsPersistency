@@ -11,12 +11,12 @@ namespace DotsPersistency.Editor
     {
         private List<string> _allAvailableTypes;
         private ReorderableList _reorderableList;
-        private PersistencySettings _persistableTypesInfo;
+        private PersistencySettings _persistencySettings;
         
         private void OnEnable()
         {
-            _persistableTypesInfo = (PersistencySettings) target;
-            _reorderableList = new ReorderableList(_persistableTypesInfo.AllPersistableTypeInfos, typeof(PersistableTypeInfo));
+            _persistencySettings = (PersistencySettings) target;
+            _reorderableList = new ReorderableList(_persistencySettings.AllPersistableTypeInfos, typeof(PersistableTypeInfo));
             _reorderableList.drawHeaderCallback = DrawHeaderCallback;
             _reorderableList.draggable = false;
             _reorderableList.drawElementCallback = DrawElementCallback;
@@ -28,27 +28,17 @@ namespace DotsPersistency.Editor
         private void OnRemoveCallback(ReorderableList list)
         {
             list.list.RemoveAt(list.index);
-            EditorUtility.SetDirty(_persistableTypesInfo);
+            EditorUtility.SetDirty(_persistencySettings);
         }
 
         private void OnAddCallback(ReorderableList list)
         {
             FindPersistableTypeWindow window = EditorWindow.GetWindow<FindPersistableTypeWindow>();
-            window.OnTypeChosen = persistableTypeInfo =>
+            window.OnTypeChosen = fullTypeName =>
             {
-                int existingIndex = _persistableTypesInfo.AllPersistableTypeInfos.FindIndex(info => info.FullTypeName == persistableTypeInfo.FullTypeName);
-                if (existingIndex != -1)
-                {
-                    Debug.Log($"{persistableTypeInfo.FullTypeName} is already in the list!");
-                    _reorderableList.index = existingIndex;
-                    return;
-                }
-                _persistableTypesInfo.AllPersistableTypeInfos.Add(persistableTypeInfo);
-                _persistableTypesInfo.AllPersistableTypeInfos.Sort((info1, info2) => string.CompareOrdinal(info1.FullTypeName, info2.FullTypeName));
-                
-                EditorUtility.SetDirty(_persistableTypesInfo);
+                _persistencySettings.AddPersistableTypeInEditor(fullTypeName);
                 // trigger the list to update
-                _reorderableList.list = _persistableTypesInfo.AllPersistableTypeInfos;
+                _reorderableList.list = _persistencySettings.AllPersistableTypeInfos;
                 Repaint();
             };
         }
@@ -59,26 +49,16 @@ namespace DotsPersistency.Editor
 
             if (GUILayout.Button("Force Update Data"))
             {
-                for (int i = _persistableTypesInfo.AllPersistableTypeInfos.Count - 1; i >= 0; i--)
+                var oldInfo = new List<PersistableTypeInfo>(_persistencySettings.AllPersistableTypeInfos);
+                _persistencySettings.ClearPersistableTypesInEditor();
+                for (int i = oldInfo.Count - 1; i >= 0; i--)
                 {
-                    var oldInfo = _persistableTypesInfo.AllPersistableTypeInfos[i];
-                    int maxElements = oldInfo.MaxElements; // this can be chosen by the user, so keep this info
-                    if (PersistencySettings.CreatePersistableTypeInfoFromFullTypeName(oldInfo.FullTypeName, out PersistableTypeInfo updatedInfo))
-                    {
-                        updatedInfo.MaxElements = updatedInfo.IsBuffer ? maxElements : 1;
-                        _persistableTypesInfo.AllPersistableTypeInfos[i] = updatedInfo;
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"'Force Update Data' removed {oldInfo.FullTypeName} since the actual type doesn't exist anymore in the ECS TypeManager.");
-                        _persistableTypesInfo.AllPersistableTypeInfos.RemoveAt(i);
-                    }
+                    var infoToRetain = oldInfo[i];
+                    _persistencySettings.AddPersistableTypeInEditor(infoToRetain.FullTypeName, infoToRetain.MaxElements);
                 }
-                _persistableTypesInfo.AllPersistableTypeInfos.Sort((info1, info2) => string.CompareOrdinal(info1.FullTypeName, info2.FullTypeName));
-                EditorUtility.SetDirty(_persistableTypesInfo);
             }
             
-            if (EditorUtility.IsDirty(_persistableTypesInfo))
+            if (EditorUtility.IsDirty(_persistencySettings))
             {
                 EditorGUILayout.HelpBox("Save for the changes to go into effect! (Ctrl+S)", MessageType.Info);
             }
@@ -86,7 +66,7 @@ namespace DotsPersistency.Editor
 
         private void DrawElementCallback(Rect rect, int index, bool isactive, bool isfocused)
         {
-            var info = _persistableTypesInfo.AllPersistableTypeInfos[index];
+            var info = _persistencySettings.AllPersistableTypeInfos[index];
             int maxElementBoxWidth = math.max(50, 10 * info.MaxElements.ToString().Length);
             string elementName = info.FullTypeName + (info.IsBuffer ? " [B]" : "");
             rect.xMax -= maxElementBoxWidth + EditorGUIUtility.standardVerticalSpacing;
@@ -102,8 +82,8 @@ namespace DotsPersistency.Editor
                 info.MaxElements = math.clamp(EditorGUI.IntField(rect, info.MaxElements), 1, PersistenceMetaData.MaxValueForAmount);
                 if (EditorGUI.EndChangeCheck())
                 {
-                    _persistableTypesInfo.AllPersistableTypeInfos[index] = info;
-                    EditorUtility.SetDirty(_persistableTypesInfo);
+                    _persistencySettings.AllPersistableTypeInfos[index] = info;
+                    EditorUtility.SetDirty(_persistencySettings);
                 }
             }
         }
