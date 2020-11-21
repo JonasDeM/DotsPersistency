@@ -29,7 +29,7 @@ namespace DotsPersistency
             if (PersistencySettings == null)
             {
                 Enabled = false;
-                Debug.LogError(PersistencySettings.NotFoundMessage);
+                Debug.Log(PersistencySettings.NotFoundMessage);
             }
             
             _beginFrameSystem = World.GetOrCreateSystem<BeginFramePersistencySystem>();

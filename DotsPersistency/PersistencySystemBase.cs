@@ -16,7 +16,6 @@ namespace DotsPersistency
             if (PersistencySettings == null)
             {
                 Enabled = false;
-                Debug.LogWarning(PersistencySettings.NotFoundMessage);
                 return;
             }
             
@@ -33,7 +32,6 @@ namespace DotsPersistency
             if (PersistencySettings == null)
             {
                 Enabled = false;
-                Debug.LogWarning(PersistencySettings.NotFoundMessage);
                 return;
             }
             

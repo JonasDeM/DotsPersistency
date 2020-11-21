@@ -9,7 +9,7 @@ using Object = UnityEngine.Object;
 namespace DotsPersistency.Editor
 {
     [CustomEditor(typeof(PersistencyAuthoring)), CanEditMultipleObjects]
-    public class PersistencyBehaviourEditor : UnityEditor.Editor
+    public class PersistencyAuthoringInspector : UnityEditor.Editor
     {
         List<string> _cachedFullTypeNames;
         private PersistencySettings _persistencySettings;
@@ -28,7 +28,7 @@ namespace DotsPersistency.Editor
         {
             if (_persistencySettings == null)
             {
-                if (GUILayout.Button("Create PersistencySettings file"))
+                if (GUILayout.Button("Create PersistencySettings", GUILayout.Height(50)))
                 {
                     PersistencySettings.CreateInEditor();
                     OnEnable();

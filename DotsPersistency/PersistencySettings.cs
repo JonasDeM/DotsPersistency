@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Transforms;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -70,8 +71,7 @@ namespace DotsPersistency
         private const string RelativeFilePathNoExt = "DotsPersistency/PersistencySettings";
         private const string RelativeFilePath = RelativeFilePathNoExt + ".asset";
         private const string AssetPath = ResourceFolder + "/" + RelativeFilePath;
-        private const string MenuItem = "DotsPersistency/CreatePersistencySettings";
-        internal const string NotFoundMessage = "PersistencySettings.asset was not found, attach the PersistencyAuthoring script to a gameobject & press the create settings file.";
+        internal const string NotFoundMessage = "PersistencySettings.asset was not found, attach the PersistencyAuthoring script to a gameobject & press the 'create settings file' button.";
         
         [SerializeField]
         private List<PersistableTypeInfo> _allPersistableTypeInfos = new List<PersistableTypeInfo>();
@@ -95,7 +95,7 @@ namespace DotsPersistency
             // This only actually loads it the first time, so multiple calls are totally fine
             PersistencySettings settings = Resources.Load<PersistencySettings>(RelativeFilePathNoExt);
 #if UNITY_EDITOR
-            // This covers an edge case with the conversion background process
+            // This covers an edge case with the conversion background process in editor
             if (settings == null)
             {
                 settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
@@ -169,23 +169,18 @@ namespace DotsPersistency
         }
         
 #if UNITY_EDITOR
-        [UnityEditor.Callbacks.DidReloadScripts]
         public static void CreateInEditor()
         {
-            try
+            var settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
+            if (settings == null)
             {
-                var settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
-                if (settings == null)
-                {
-                    settings = CreateInstance<PersistencySettings>();
-                    System.IO.Directory.CreateDirectory(Folder);
-                    UnityEditor.AssetDatabase.CreateAsset(settings, AssetPath);
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.Log($"Something went wrong while auto-creating the PersistencySettings asset. trace:\n{e}");
-                throw;
+                System.IO.Directory.CreateDirectory(Folder);
+                
+                settings = CreateInstance<PersistencySettings>();
+                settings.AddPersistableTypeInEditor(typeof(Translation).FullName);
+                settings.AddPersistableTypeInEditor(typeof(Rotation).FullName);
+                settings.AddPersistableTypeInEditor(typeof(Disabled).FullName);
+                UnityEditor.AssetDatabase.CreateAsset(settings, AssetPath);
             }
         }
 

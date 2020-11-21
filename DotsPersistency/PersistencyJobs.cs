@@ -13,7 +13,7 @@ using UnityEngine;
 namespace DotsPersistency
 {
     [BurstCompile]
-    public unsafe struct CopyComponentDataToByteArray : IJobChunk
+    public unsafe struct CopyComponentDataToByteArray : IJobEntityBatch
     {
         [ReadOnly, NativeDisableParallelForRestriction]
         public DynamicComponentTypeHandle ComponentTypeHandle;
@@ -22,11 +22,11 @@ namespace DotsPersistency
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
         [WriteOnly, NativeDisableContainerSafetyRestriction]
         public NativeArray<byte> OutputData;
-            
-        public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
+        
+        public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            var byteArray = chunk.GetComponentDataAsByteArray(ComponentTypeHandle);
-            var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
+            var byteArray = batchInChunk.GetComponentDataAsByteArray(ComponentTypeHandle);
+            var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
             
             int totalElementSize = TypeSize + PersistenceMetaData.SizeOfStruct;
             const int amountFound = 1;
@@ -52,16 +52,16 @@ namespace DotsPersistency
     }
     
     [BurstCompile]
-    public unsafe struct UpdateMetaDataForComponentTag : IJobChunk
+    public unsafe struct UpdateMetaDataForComponentTag : IJobEntityBatch
     {
         [ReadOnly] 
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
         [NativeDisableContainerSafetyRestriction]
         public NativeArray<byte> OutputData;
             
-        public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
+        public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
+            var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
             const int amountFound = 1;
             
             for (int i = 0; i < persistenceStateArray.Length; i++)
@@ -80,7 +80,7 @@ namespace DotsPersistency
     }
     
     [BurstCompile]
-    public unsafe struct CopyByteArrayToComponentData : IJobChunk
+    public unsafe struct CopyByteArrayToComponentData : IJobEntityBatch
     {
         [NativeDisableContainerSafetyRestriction]
         public DynamicComponentTypeHandle ComponentTypeHandle;
@@ -90,10 +90,10 @@ namespace DotsPersistency
         [ReadOnly]
         public NativeArray<byte> InputData;
             
-        public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
+        public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            var byteArray = chunk.GetComponentDataAsByteArray(ComponentTypeHandle);
-            var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
+            var byteArray = batchInChunk.GetComponentDataAsByteArray(ComponentTypeHandle);
+            var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
             
             int totalElementSize = TypeSize + PersistenceMetaData.SizeOfStruct;
             
@@ -110,7 +110,7 @@ namespace DotsPersistency
     }
     
     [BurstCompile]
-    public unsafe struct RemoveComponent : IJobChunk
+    public unsafe struct RemoveComponent : IJobEntityBatch
     {        
         public ComponentType TypeToRemove;
         public int TypeSize;
@@ -122,26 +122,27 @@ namespace DotsPersistency
         public EntityTypeHandle EntityType;
         [ReadOnly]
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
-        public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
+        
+        public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            var entities = chunk.GetNativeArray(EntityType);
-            var persistenceStates = chunk.GetNativeArray(PersistenceStateType);
+            var entities = batchInChunk.GetNativeArray(EntityType);
+            var persistenceStates = batchInChunk.GetNativeArray(PersistenceStateType);
             
-            for (int i = 0; i < chunk.Count; i++)
+            for (int i = 0; i < batchInChunk.Count; i++)
             {
                 var persistenceState = persistenceStates[i];
                 int stride = TypeSize + PersistenceMetaData.SizeOfStruct;
                 var metaData = UnsafeUtility.ReadArrayElementWithStride<PersistenceMetaData>(InputData.GetUnsafeReadOnlyPtr(), persistenceState.ArrayIndex, stride);
                 if (metaData.AmountFound == 0)
                 {
-                    Ecb.RemoveComponent(chunkIndex, entities[i], TypeToRemove);
+                    Ecb.RemoveComponent(batchIndex, entities[i], TypeToRemove);
                 }
             }
         }
     }
     
     [BurstCompile]
-    public unsafe struct AddMissingComponent : IJobChunk
+    public unsafe struct AddMissingComponent : IJobEntityBatch
     {        
         [ReadOnly, NativeDisableParallelForRestriction]
         public EntityTypeHandle EntityType;
@@ -153,10 +154,10 @@ namespace DotsPersistency
         [ReadOnly, NativeDisableParallelForRestriction]
         public NativeArray<byte> InputData;
             
-        public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
+        public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            var entityArray = chunk.GetNativeArray(EntityType);
-            var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
+            var entityArray = batchInChunk.GetNativeArray(EntityType);
+            var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
             int totalElementSize = TypeSize + PersistenceMetaData.SizeOfStruct;
             
             for (int i = 0; i < entityArray.Length; i++)
@@ -168,10 +169,10 @@ namespace DotsPersistency
 
                 if (metaData.AmountFound == 1)
                 {
-                    Ecb.AddComponent(chunkIndex, entityArray[i], ComponentType); 
+                    Ecb.AddComponent(batchIndex, entityArray[i], ComponentType); 
                     if (TypeSize != 0)
                     {
-                        Ecb.SetComponent(chunkIndex, entityArray[i], ComponentType, TypeSize, InputData.GetSubArray(inputDataByteIndex, TypeSize));
+                        Ecb.SetComponent(batchIndex, entityArray[i], ComponentType, TypeSize, InputData.GetSubArray(inputDataByteIndex, TypeSize));
                     }
                 }
             }
@@ -179,7 +180,7 @@ namespace DotsPersistency
     }
     
     [BurstCompile]
-    public unsafe struct CopyBufferElementsToByteArray : IJobChunk
+    public unsafe struct CopyBufferElementsToByteArray : IJobEntityBatch
     {
         [NativeDisableContainerSafetyRestriction, ReadOnly]
         public DynamicBufferTypeHandle BufferTypeHandle;
@@ -190,10 +191,10 @@ namespace DotsPersistency
         [NativeDisableContainerSafetyRestriction]
         public NativeArray<byte> OutputData;
             
-        public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
+        public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(BufferTypeHandle);
-            var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
+            var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(BufferTypeHandle);
+            var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
             
             int sizePerEntity = ElementSize * MaxElements + PersistenceMetaData.SizeOfStruct;
             
@@ -201,8 +202,8 @@ namespace DotsPersistency
             {
                 PersistenceState persistenceState = persistenceStateArray[i];
                 var byteBuffer = untypedBufferAccessor[i];
-                // todo restore checks when the unity fixes the NativeDisableContainerSafetyRestriction not working on ArchetypeChunkBufferType
-                void* bufferDataPtr = NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(byteBuffer); 
+                void* bufferDataPtr = byteBuffer.GetUnsafePtr(); 
+                
                 PersistenceMetaData* outputMetaBytePtr = (PersistenceMetaData*)((byte*) OutputData.GetUnsafePtr() + persistenceState.ArrayIndex * sizePerEntity);
                 void* outputDataBytePtr = outputMetaBytePtr + 1;
                 int amountElements = byteBuffer.Length / ElementSize;
@@ -222,7 +223,7 @@ namespace DotsPersistency
     }
     
     [BurstCompile]
-    public unsafe struct CopyByteArrayToBufferElements : IJobChunk
+    public unsafe struct CopyByteArrayToBufferElements : IJobEntityBatch
     {
         [NativeDisableContainerSafetyRestriction]
         public DynamicBufferTypeHandle BufferTypeHandle;
@@ -234,10 +235,10 @@ namespace DotsPersistency
         [ReadOnly, NativeDisableParallelForRestriction]
         public NativeArray<byte> InputData;
 
-        public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
+        public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            var untypedBufferAccessor = chunk.GetUntypedBufferAccessor(BufferTypeHandle);
-            var persistenceStateArray = chunk.GetNativeArray(PersistenceStateType);
+            var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(BufferTypeHandle);
+            var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
             
             Debug.Assert(MaxElements < PersistenceMetaData.MaxValueForAmount);
             int sizePerEntity = ElementSize * MaxElements + PersistenceMetaData.SizeOfStruct;
@@ -245,10 +246,9 @@ namespace DotsPersistency
             for (int i = 0; i < persistenceStateArray.Length; i++)
             {
                 PersistenceState persistenceState = persistenceStateArray[i];
-                // restore checks when unity fixes the NativeDisableContainerSafetyRestriction not working on ArchetypeChunkBufferType
-                Debug.Assert(persistenceState.ArrayIndex < InputData.Length/sizePerEntity);              
+                Debug.Assert(persistenceState.ArrayIndex < InputData.Length/sizePerEntity);
                 PersistenceMetaData* inputMetaDataPtr = (PersistenceMetaData*)((byte*) InputData.GetUnsafeReadOnlyPtr() + persistenceState.ArrayIndex * sizePerEntity);
-                void* inputDataBytePtr = inputMetaDataPtr + 1;
+                void* inputDataBytePtr = inputMetaDataPtr + 1; // + 1 because it's a PersistenceMetaData pointer
 
                 // Resize
                 int amountToCopy = inputMetaDataPtr->AmountFound;
@@ -265,9 +265,8 @@ namespace DotsPersistency
     }
 }
 
-// REFERENCE IMPLEMENTATIONS
-// *************************
-
+// REFERENCE IMPLEMENTATIONS (No MetaData)
+// ***************************************
 namespace DotsPersistency
 {
     // [BurstCompile]

@@ -18,7 +18,6 @@ namespace DotsPersistency.Hybrid
             var settings = PersistencySettings.Get();
             if (settings == null)
             {
-                Debug.LogWarning(PersistencySettings.NotFoundMessage);
                 return;
             }
             
@@ -47,7 +46,6 @@ namespace DotsPersistency.Hybrid
             var settings = PersistencySettings.Get();
             if (settings == null)
             {
-                Debug.LogWarning(PersistencySettings.NotFoundMessage);
                 return;
             }
             

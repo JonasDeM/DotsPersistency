@@ -45,7 +45,7 @@ namespace DotsPersistency.Tests
             // Action
             var job1 = new CopyComponentDataToByteArray()
             {
-                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
+                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array1IntData
@@ -53,7 +53,7 @@ namespace DotsPersistency.Tests
             
             var job2 =new CopyComponentDataToByteArray()
             {
-                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
+                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() ,
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array2FloatData
@@ -61,7 +61,7 @@ namespace DotsPersistency.Tests
             
             var job3 =new CopyComponentDataToByteArray()
             {
-                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
+                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array5IntData
@@ -190,7 +190,7 @@ namespace DotsPersistency.Tests
             // Action
             new CopyByteArrayToComponentData()
             {
-                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
+                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array1IntData
@@ -198,7 +198,7 @@ namespace DotsPersistency.Tests
             
             new CopyByteArrayToComponentData()
             {
-                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
+                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array2FloatData
@@ -206,7 +206,7 @@ namespace DotsPersistency.Tests
 
             new CopyByteArrayToComponentData()
             {
-                ChunkComponentType = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
+                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array5IntData

@@ -26,7 +26,7 @@ namespace DotsPersistency.Hybrid
                 {
                     retVal.Add(typeHandle); 
                 }
-                else
+                else if (!string.IsNullOrEmpty(fullTypeName))
                 {
                     Debug.LogWarning($"Ignoring non-persistable type {fullTypeName} (Did it get removed from PersistencySettings?)");
                 }
