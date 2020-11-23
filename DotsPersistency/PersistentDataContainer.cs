@@ -8,7 +8,8 @@ namespace DotsPersistency
     public struct PersistentDataContainer : IDisposable
     {
         private NativeArray<byte> _data;
-        private NativeArray<PersistencyArchetypeDataLayout> _persistenceArchetypes;
+        private NativeArray<PersistencyArchetypeDataLayout> _persistenceArchetypesDataLayouts;
+        internal NativeArray<PersistencyArchetypeDataLayout> PersistencyArchetypeDataLayouts => _persistenceArchetypesDataLayouts;
             
         public SceneSection SceneSection => _sceneSection;
         private SceneSection _sceneSection;
@@ -20,16 +21,16 @@ namespace DotsPersistency
         }
         private int _tick;
 
-        public int Count => _persistenceArchetypes.Length;
+        public int Count => _persistenceArchetypesDataLayouts.Length;
 
-        public PersistentDataContainer(SceneSection sceneSection, NativeArray<PersistencyArchetypeDataLayout> persistenceArchetypes, Allocator allocator)
+        public PersistentDataContainer(SceneSection sceneSection, NativeArray<PersistencyArchetypeDataLayout> persistenceArchetypesDataLayouts, Allocator allocator)
         {
             _sceneSection = sceneSection;
             _tick = 0;
-            _persistenceArchetypes = persistenceArchetypes;
+            _persistenceArchetypesDataLayouts = persistenceArchetypesDataLayouts;
 
             int size = 0;
-            foreach (var persistenceArchetype in persistenceArchetypes)
+            foreach (var persistenceArchetype in persistenceArchetypesDataLayouts)
             {
                 size += persistenceArchetype.Amount * persistenceArchetype.SizePerEntity;
             }
@@ -38,12 +39,12 @@ namespace DotsPersistency
             
         public PersistencyArchetypeDataLayout GetPersistenceArchetypeDataLayoutAtIndex(int index)
         {
-            return _persistenceArchetypes[index];
+            return _persistenceArchetypesDataLayouts[index];
         }
-            
+        
         public NativeArray<byte> GetSubArrayAtIndex(int index)
         {
-            var archetype = _persistenceArchetypes[index];
+            var archetype = _persistenceArchetypesDataLayouts[index];
             return _data.GetSubArray(archetype.Offset, archetype.Amount * archetype.SizePerEntity);
         }
 

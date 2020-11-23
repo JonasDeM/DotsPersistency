@@ -12,6 +12,8 @@ namespace DotsPersistency.Editor
         private List<string> _allAvailableTypes;
         private ReorderableList _reorderableList;
         private PersistencySettings _persistencySettings;
+
+        private bool _foldoutSettings = false;
         
         private void OnEnable()
         {
@@ -46,8 +48,7 @@ namespace DotsPersistency.Editor
         public override void OnInspectorGUI()
         {
             _reorderableList.DoLayoutList();
-
-            if (GUILayout.Button("Force Update Data"))
+            if (GUILayout.Button("Force Update Type Data"))
             {
                 var oldInfo = new List<PersistableTypeInfo>(_persistencySettings.AllPersistableTypeInfos);
                 _persistencySettings.ClearPersistableTypesInEditor();
@@ -56,6 +57,19 @@ namespace DotsPersistency.Editor
                     var infoToRetain = oldInfo[i];
                     _persistencySettings.AddPersistableTypeInEditor(infoToRetain.FullTypeName, infoToRetain.MaxElements);
                 }
+            }
+            
+            EditorGUILayout.Space();
+            _foldoutSettings = EditorGUILayout.Foldout(_foldoutSettings, "Debug Options", true);
+            EditorGUI.BeginChangeCheck();
+            if (_foldoutSettings)
+            {
+                _persistencySettings.ForceUseGroupedJobsInEditor = EditorGUILayout.ToggleLeft("Force Grouped Jobs In Editor (Unsafe)", _persistencySettings.ForceUseGroupedJobsInEditor);
+                _persistencySettings.ForceUseNonGroupedJobsInBuild = EditorGUILayout.ToggleLeft("Force Non-Grouped Jobs In Build (Slow)", _persistencySettings.ForceUseNonGroupedJobsInBuild);
+            }
+            if (EditorGUI.EndChangeCheck())
+            {
+                EditorUtility.SetDirty(_persistencySettings);
             }
             
             if (EditorUtility.IsDirty(_persistencySettings))

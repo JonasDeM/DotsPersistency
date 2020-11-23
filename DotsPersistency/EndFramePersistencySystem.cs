@@ -44,7 +44,7 @@ namespace DotsPersistency
 
                 var writeContainer = _containerSystem.PersistentDataStorage.GetWriteContainerForCurrentIndex(sceneSectionToPersist);
                 Dependency = JobHandle.CombineDependencies(Dependency,
-                    ScheduleCopyToPersistentDataContainer(inputDependencies, sceneSectionToPersist, writeContainer));
+                    SchedulePersist(inputDependencies, sceneSectionToPersist, writeContainer));
             }
             sceneSectionsToUnload.Dispose();
             

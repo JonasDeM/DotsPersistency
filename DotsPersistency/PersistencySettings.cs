@@ -4,6 +4,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
@@ -14,57 +15,7 @@ using Debug = UnityEngine.Debug;
 
 namespace DotsPersistency
 {
-    [Serializable]
-    public struct PersistableTypeHandle
-    {
-        [SerializeField]
-        internal ushort Handle;
-
-        public bool IsValid => Handle > 0;
-    }
-    
-    [Serializable]
-    internal struct PersistableTypeInfo
-    {
-        // If any of these values change on the type itself the validity check will pick that up & the user needs to force update
-        public string FullTypeName;
-        public ulong StableTypeHash;
-        public bool IsBuffer;
-        public int MaxElements;
-
-        // Non-serialized fields gotten from TypeManager on deserialize
-        // These values can easily change without our knowledge, so that's why we don't serialize them
-        [NonSerialized]
-        public int TypeManagerTypeIndex;
-
-        [Conditional("DEBUG")]
-        public void ValidityCheck()
-        {
-            if (MaxElements < 1 || string.IsNullOrEmpty(FullTypeName))
-            {
-                throw new DataException("Invalid PersistableTypeInfo in the RuntimePersistableTypesInfo asset! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button & look at console)");
-            }
-
-            int typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(StableTypeHash);
-            
-            if (typeIndex == -1)
-            {
-                throw new DataException($"{FullTypeName} has an invalid StableTypeHash in PersistableTypeInfo in the RuntimePersistableTypesInfo asset! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button & look at console)");
-            }
-            
-            if (TypeManager.IsBuffer(typeIndex) != IsBuffer)
-            {
-                throw new DataException($"{FullTypeName} is set as a buffer in the RuntimePersistableTypesInfo asset, but is not actually a buffer type! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button & look at console)");
-            }
-
-            if (!IsBuffer && MaxElements > 1)
-            {
-                throw new DataException($"{FullTypeName} has {MaxElements.ToString()} as MaxElements the RuntimePersistableTypesInfo asset, but it is not a buffer type! Try force updating RuntimePersistableTypesInfo (search the asset & press the force update button & look at console)");
-            }
-        }
-    }
-    
-    public class PersistencySettings : ScriptableObject
+    public partial class PersistencySettings : ScriptableObject
     {
         private const string ResourceFolder = "Assets/DotsPersistency/Resources";
         private const string Folder = ResourceFolder + "/DotsPersistency";
@@ -77,42 +28,40 @@ namespace DotsPersistency
         private List<PersistableTypeInfo> _allPersistableTypeInfos = new List<PersistableTypeInfo>();
         internal List<PersistableTypeInfo> AllPersistableTypeInfos => _allPersistableTypeInfos;
 
-        private bool _isInitialized = false;
+        [SerializeField]
+        internal bool ForceUseNonGroupedJobsInBuild = false;
+        [SerializeField]
+        internal bool ForceUseGroupedJobsInEditor = false;
+        private TypeIndexLookup _typeIndexLookup;
+        private bool _initialized;
         
         private void Initialize()
         {
+            var typeIndexArray = new NativeArray<int>(_allPersistableTypeInfos.Count, Allocator.Persistent);
             for (int i = 0; i < _allPersistableTypeInfos.Count; i++)
             {
-                var infoToUpdate = _allPersistableTypeInfos[i];
-                infoToUpdate.TypeManagerTypeIndex = TypeManager.GetTypeIndexFromStableTypeHash(infoToUpdate.StableTypeHash);
-                infoToUpdate.ValidityCheck();
-                _allPersistableTypeInfos[i] = infoToUpdate;
+                PersistableTypeInfo typeInfo = _allPersistableTypeInfos[i];
+                typeInfo.ValidityCheck();
+                typeIndexArray[i] = TypeManager.GetTypeIndexFromStableTypeHash(typeInfo.StableTypeHash);
             }
+            _typeIndexLookup = new TypeIndexLookup()
+            {
+                TypeIndexArray = typeIndexArray
+            };
+            _initialized = true;
         }
-        
-        public static PersistencySettings Get()
+
+        internal void Dispose()
         {
-            // This only actually loads it the first time, so multiple calls are totally fine
-            PersistencySettings settings = Resources.Load<PersistencySettings>(RelativeFilePathNoExt);
-#if UNITY_EDITOR
-            // This covers an edge case with the conversion background process in editor
-            if (settings == null)
-            {
-                settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
-            }
-#endif
-            if (settings != null && !settings._isInitialized)
-            {
-                settings.Initialize();
-            }
-            return settings;
+            _typeIndexLookup.Dispose();
+            _initialized = false;
         }
-        
+
         // fastest way to get the type index
         public int GetTypeIndex(PersistableTypeHandle typeHandle)
         {
             Debug.Assert(typeHandle.IsValid, "Expected a valid type handle");
-            return _allPersistableTypeInfos[typeHandle.Handle - 1].TypeManagerTypeIndex;
+            return _typeIndexLookup.GetTypeIndex(typeHandle);
         }
         
         public int GetMaxElements(PersistableTypeHandle typeHandle)
@@ -136,6 +85,20 @@ namespace DotsPersistency
 
             persistableTypeHandle = default;
             return false;
+        }
+
+        public bool UseGroupedJobs()
+        {
+#if UNITY_EDITOR
+            return ForceUseGroupedJobsInEditor;
+#else
+            return !ForceUseNonGroupedJobsInBuild;
+#endif
+        }
+
+        public TypeIndexLookup GetTypeIndexLookup()
+        {
+            return _typeIndexLookup;
         }
 
         public static bool IsSupported(TypeManager.TypeInfo info, out string notSupportedReason)
@@ -168,91 +131,41 @@ namespace DotsPersistency
             return true;
         }
         
-#if UNITY_EDITOR
-        public static void CreateInEditor()
+        public static PersistencySettings Get()
         {
-            var settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
+            // This only actually loads it the first time, so multiple calls are totally fine
+            PersistencySettings settings = Resources.Load<PersistencySettings>(RelativeFilePathNoExt);
+#if UNITY_EDITOR
+            // This covers an edge case with the conversion background process in editor
             if (settings == null)
             {
-                System.IO.Directory.CreateDirectory(Folder);
-                
-                settings = CreateInstance<PersistencySettings>();
-                settings.AddPersistableTypeInEditor(typeof(Translation).FullName);
-                settings.AddPersistableTypeInEditor(typeof(Rotation).FullName);
-                settings.AddPersistableTypeInEditor(typeof(Disabled).FullName);
-                UnityEditor.AssetDatabase.CreateAsset(settings, AssetPath);
+                settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
             }
-        }
-
-        public bool AddPersistableTypeInEditor(string fullTypeName, int maxElements = -1)
-        {
-            if (_allPersistableTypeInfos.Any(info => info.FullTypeName == fullTypeName))
+#endif
+            if (settings != null && !settings._initialized)
             {
-                Debug.Log($"Failed to add {fullTypeName} is already in the list!");
-                return false;
+                settings.Initialize();
             }
-            
-            bool creationSuccess = CreatePersistableTypeInfoFromFullTypeName(fullTypeName, out PersistableTypeInfo persistableTypeInfo);
-            if (!creationSuccess)
-            {
-                Debug.Log($"Removed {fullTypeName}, type doesn't exist in the ECS TypeManager");
-                return false;
-            }
-
-            if (maxElements > 0 && persistableTypeInfo.IsBuffer)
-            {
-                persistableTypeInfo.MaxElements = maxElements;
-            }
-
-            _allPersistableTypeInfos.Add(persistableTypeInfo);
-            _allPersistableTypeInfos.Sort((info1, info2) => string.CompareOrdinal(info1.FullTypeName, info2.FullTypeName));
-            UnityEditor.EditorUtility.SetDirty(this);
-            return true;
+            return settings;
         }
         
-        private static bool CreatePersistableTypeInfoFromFullTypeName(string fullTypeName, out PersistableTypeInfo persistableTypeInfo)
+        // The lookup just indexes into a native array, so almost instant
+        public struct TypeIndexLookup
         {
-            foreach (var typeInfoEntry in TypeManager.AllTypes)
+            [ReadOnly] internal NativeArray<int> TypeIndexArray;
+
+            public int GetTypeIndex(PersistableTypeHandle typeHandle)
             {
-                if (typeInfoEntry.Type != null && typeInfoEntry.Type.FullName == fullTypeName && IsSupported(typeInfoEntry, out _))
-                {
-                    bool isBuffer = typeInfoEntry.Category == TypeManager.TypeCategory.BufferData;
-                    persistableTypeInfo = new PersistableTypeInfo()
-                    {
-                        FullTypeName = fullTypeName,
-                        StableTypeHash = typeInfoEntry.StableTypeHash,
-                        IsBuffer = isBuffer,
-                        MaxElements = math.max(1, isBuffer ? typeInfoEntry.BufferCapacity : 1) // Initial BufferCapacity seems like a decent default max
-                    };
-                    return true;
-                }
+                Debug.Assert(typeHandle.IsValid, "Expected a valid type handle");
+                return TypeIndexArray[typeHandle.Handle - 1];
             }
 
-            persistableTypeInfo = default;
-            return false;
-        }
-
-        public void ClearPersistableTypesInEditor()
-        {
-            _allPersistableTypeInfos.Clear();
-            UnityEditor.EditorUtility.SetDirty(this);
-        }
-
-        public string GetPrettyNameInEditor(string fullTypeName)
-        {
-            for (int i = 0; i < _allPersistableTypeInfos.Count; i++)
+            internal void Dispose()
             {
-                var typeInfo = _allPersistableTypeInfos[i];
-                if (_allPersistableTypeInfos[i].FullTypeName == fullTypeName)
-                {
-                    string prettyName = fullTypeName.Substring(math.clamp(fullTypeName.LastIndexOf('.') + 1, 0, fullTypeName.Length)) 
-                                        + (typeInfo.IsBuffer ? " [B]" : "");
-                    return prettyName;
-                }
+                TypeIndexArray.Dispose();
             }
 
-            return "Invalid";
+            public bool IsCreated => TypeIndexArray.IsCreated;
         }
-#endif // UNITY_EDITOR
     }
 }

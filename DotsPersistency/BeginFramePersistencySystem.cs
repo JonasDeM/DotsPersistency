@@ -64,13 +64,13 @@ namespace DotsPersistency
             
             foreach (var container in _initialStatePersistRequests)
             {
-                Dependency = JobHandle.CombineDependencies(Dependency, ScheduleCopyToPersistentDataContainer(inputDependencies, container.SceneSection, container));
+                Dependency = JobHandle.CombineDependencies(Dependency, SchedulePersist(inputDependencies, container.SceneSection, container));
             }
 
             JobHandle applyDependencies = new JobHandle();
             foreach (var container in _applyRequests)
             {
-                applyDependencies = JobHandle.CombineDependencies(applyDependencies,  ScheduleApplyToSceneSection(inputDependencies, container.SceneSection, container, _ecbSystem));
+                applyDependencies = JobHandle.CombineDependencies(applyDependencies,  ScheduleApply(inputDependencies, container.SceneSection, container, _ecbSystem));
             }
             _ecbSystem.AddJobHandleForProducer(applyDependencies);
             Dependency = JobHandle.CombineDependencies(Dependency, applyDependencies);
