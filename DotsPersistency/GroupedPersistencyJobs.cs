@@ -1,8 +1,10 @@
-﻿using DotsPersistency.Containers;
+﻿using System;
+using System.Diagnostics;
+using DotsPersistency.Containers;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace DotsPersistency
 {
@@ -18,7 +20,7 @@ namespace DotsPersistency
         
         [ReadOnly] public EntityTypeHandle EntityTypeHandle;
         [ReadOnly] public ComponentTypeHandle<PersistenceState> PersistenceStateTypeHandle;
-        [ReadOnly] public ComponentTypeHandle<PersistencyArchetypeDataLayout2> DataLayoutTypeHandle;
+        [ReadOnly] public ComponentTypeHandle<PersistencyArchetypeIndexInContainer> PersistencyArchetypeIndexInContainerTypeHandle;
         [ReadOnly] public ComponentTypeHandleArray DynamicComponentTypeHandles;
         [ReadOnly] public BufferTypeHandleArray DynamicBufferTypeHandles;
 
@@ -28,16 +30,21 @@ namespace DotsPersistency
 
         public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            NativeArray<PersistenceState> persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateTypeHandle); // todo use this
+            // todo perf instead of grabbing these container every time, just grab em once here
+            // NativeArray<PersistenceState> persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateTypeHandle);
+            // NativeArray<Entity> entityArray = batchInChunk.GetNativeArray(EntityTypeHandle);
             
-            PersistencyArchetypeDataLayout2 dataLayout = batchInChunk.GetChunkComponentData(DataLayoutTypeHandle);
-            ref BlobArray<PersistencyArchetypeDataLayout2.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
+            NativeArray<PersistencyArchetypeIndexInContainer> archetypeIndexInContainerArray = batchInChunk.GetNativeArray(PersistencyArchetypeIndexInContainerTypeHandle);
+            ValidateArchetypeIndexInContainer(archetypeIndexInContainerArray);
+            
+            PersistencyArchetypeDataLayout dataLayout = DataContainer.GetPersistenceArchetypeDataLayoutAtIndex(archetypeIndexInContainerArray[0].Index);
+            ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
             var dataForArchetype = DataContainer.GetSubArrayAtIndex(dataLayout.ArchetypeIndexInContainer);
 
             for (int typeInfoIndex = 0; typeInfoIndex < typeInfoArray.Length; typeInfoIndex++)
             {
                 // type info
-                PersistencyArchetypeDataLayout2.TypeInfo typeInfo = typeInfoArray[typeInfoIndex];
+                PersistencyArchetypeDataLayout.TypeInfo typeInfo = typeInfoArray[typeInfoIndex];
                 ComponentType runtimeType = ComponentType.ReadWrite(TypeIndexLookup.GetTypeIndex(typeInfo.PersistableTypeHandle)); 
                 int stride = typeInfo.ElementSize * typeInfo.MaxElements + PersistenceMetaData.SizeOfStruct;
                 int byteSize = dataLayout.Amount * stride;
@@ -100,6 +107,25 @@ namespace DotsPersistency
                             Ecb = Ecb
                         }.Execute(batchInChunk, batchIndex);
                     }
+                }
+            }
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        private void ValidateArchetypeIndexInContainer(NativeArray<PersistencyArchetypeIndexInContainer> dataForOneChunk)
+        {
+            if (dataForOneChunk.Length == 0)
+            {
+                throw new Exception("Chunk must have at least one entity!");
+            }
+
+            ushort value = dataForOneChunk[0].Index;
+            
+            for (int i = 0; i < dataForOneChunk.Length; i++)
+            {
+                if (dataForOneChunk[i].Index != value)
+                {
+                    throw new Exception("All Persisted Entities in the same chunk need to have the same PersistencyArchetypeIndexInContainer.Index value!");
                 }
             }
         }

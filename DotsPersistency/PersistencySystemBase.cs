@@ -309,27 +309,26 @@ namespace DotsPersistency
             query.SetSharedComponentFilter(sceneSection);
             
             throw new NotImplementedException();
-            // todo transition to chunk components
-            // ComponentTypeHandleArray componentTypeHandles = new ComponentTypeHandleArray(0, Allocator.TempJob);
-            // BufferTypeHandleArray bufferTypeHandles = new BufferTypeHandleArray(0, Allocator.TempJob);
-            // 
-            // inputDeps = new GroupedApplyJob()
-            // {
-            //     DataLayouts = , // must be sorted by sharedcomponentindex
-            //     DataContainer = dataContainer,
-            //     EntityTypeHandle = GetEntityTypeHandle(),
-            //     PersistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(),
-            //     DataLayoutTypeHandle = GetSharedComponentTypeHandle<PersistencyArchetypeDataLayout>(),
-            //     DynamicComponentTypeHandles = componentTypeHandles,
-            //     DynamicBufferTypeHandles = bufferTypeHandles,
-            //     TypeIndexLookup = PersistencySettings.GetTypeIndexLookup(),
-            //     Ecb = ecbSystem.CreateCommandBuffer().AsParallelWriter()
-            // }.ScheduleParallel(query, 1, inputDeps);
-            // componentTypeHandles.Dispose(inputDeps);
-            // bufferTypeHandles.Dispose(inputDeps);
-            // dataLayouts.Dispose(inputDeps);
-            // 
-            // return inputDeps;
+            
+            // todo fill these
+            ComponentTypeHandleArray componentTypeHandles = new ComponentTypeHandleArray(0, Allocator.TempJob);
+            BufferTypeHandleArray bufferTypeHandles = new BufferTypeHandleArray(0, Allocator.TempJob);
+            
+            inputDeps = new GroupedApplyJob()
+            {
+                DataContainer = dataContainer,
+                EntityTypeHandle = GetEntityTypeHandle(),
+                PersistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(),
+                PersistencyArchetypeIndexInContainerTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>(),
+                DynamicComponentTypeHandles = componentTypeHandles,
+                DynamicBufferTypeHandles = bufferTypeHandles,
+                TypeIndexLookup = PersistencySettings.GetTypeIndexLookup(),
+                Ecb = ecbSystem.CreateCommandBuffer().AsParallelWriter()
+            }.ScheduleParallel(query, 1, inputDeps);
+            componentTypeHandles.Dispose(inputDeps);
+            bufferTypeHandles.Dispose(inputDeps);
+            
+            return inputDeps;
         }
         
         // The equality/hash implementation of ComponentType does not take into account access mode type

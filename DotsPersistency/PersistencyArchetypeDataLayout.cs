@@ -62,27 +62,12 @@ namespace DotsPersistency
         [SerializeField] private ushort _length;
         [SerializeField] private FixedArray16<PersistableTypeHandle> _array16;
     }
-    
-    // This component gets replaced by PersistencyArchetypeDataLayout on the first frame an entity is loaded
-    [Serializable]
-    public struct PersistencyArchetypeDataLayout2 : IComponentData
+
+    public struct PersistencyArchetypeIndexInContainer : IComponentData
     {
-        public BlobAssetReference<BlobArray<TypeInfo>> PersistedTypeInfoArrayRef;
-        public int Amount;
-        public int Offset; // Byte Offset in the Byte Array which contains all data for 1 SceneSection
-        public int ArchetypeIndexInContainer; // Index specifically for this SceneSection
-        public int SizePerEntity;
-
-        public struct TypeInfo
-        {
-            public PersistableTypeHandle PersistableTypeHandle; // index in PersistencySettings its type list
-            public int ElementSize;
-            public int MaxElements;
-            public bool IsBuffer;
-            public int Offset; // Byte Offset in the Byte Sub Array which contains all data for a PersistenceArchetype in 1 SceneSection
-        }
+        public ushort Index;
     }
-
+    
     // A persisting entity needs this component
     // It holds the index into the sub array that holds the persisted data
     // Entities their data will reside in the same arrays if they have the same SharedComponentData for SceneSection & PersistenceArchetypeDataLayout
