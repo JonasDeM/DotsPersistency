@@ -51,12 +51,6 @@ namespace DotsPersistency
             _initialized = true;
         }
 
-        internal void Dispose()
-        {
-            _typeIndexLookup.Dispose();
-            _initialized = false;
-        }
-
         // fastest way to get the type index
         public int GetTypeIndex(PersistableTypeHandle typeHandle)
         {
@@ -142,13 +136,26 @@ namespace DotsPersistency
                 settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
             }
 #endif
-            if (settings != null && !settings._initialized)
-            {
-                settings.Initialize();
-            }
             return settings;
         }
         
+        private void OnEnable()
+        {
+            if (!_initialized)
+            {
+                Initialize();
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (_initialized)
+            {
+                _typeIndexLookup.Dispose();
+                _initialized = false;
+            }
+        }
+
         // The lookup just indexes into a native array, so almost instant
         public struct TypeIndexLookup
         {

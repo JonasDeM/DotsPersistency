@@ -156,7 +156,7 @@ namespace DotsPersistency
                     var dataLayout = new PersistencyArchetypeDataLayout()
                     {
                         Amount = _initEntitiesQuery.CalculateEntityCount(),
-                        ArchetypeIndexInContainer = i,
+                        ArchetypeIndexInContainer = (ushort)i,
                         PersistedTypeInfoArrayRef = persistencyArchetype.BuildTypeInfoBlobAsset(PersistencySettings, amount, out int sizePerEntity),
                         SizePerEntity = sizePerEntity,
                         Offset = offset
@@ -183,7 +183,6 @@ namespace DotsPersistency
         protected override void OnDestroy()
         {
             PersistentDataStorage.Dispose();
-            PersistencySettings.Dispose(); // not the best place to dispose since it doesn't own the object
         }
     }
 }

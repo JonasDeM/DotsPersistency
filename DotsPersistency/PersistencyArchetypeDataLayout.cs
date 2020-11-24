@@ -18,8 +18,8 @@ namespace DotsPersistency
         public BlobAssetReference<BlobArray<TypeInfo>> PersistedTypeInfoArrayRef;
         public int Amount;
         public int Offset; // Byte Offset in the Byte Array which contains all data for 1 SceneSection
-        public int ArchetypeIndexInContainer; // Index specifically for this SceneSection
         public int SizePerEntity;
+        public ushort ArchetypeIndexInContainer; // Index specifically for any container for this SceneSection
 
         public struct TypeInfo
         {
