@@ -47,6 +47,8 @@ namespace DotsPersistency.Editor
 
         public override void OnInspectorGUI()
         {
+            GUI.enabled = !EditorApplication.isPlayingOrWillChangePlaymode;
+            
             _reorderableList.DoLayoutList();
             if (GUILayout.Button("Force Update Type Data"))
             {
@@ -76,6 +78,8 @@ namespace DotsPersistency.Editor
             {
                 EditorGUILayout.HelpBox("Save for the changes to go into effect! (Ctrl+S)", MessageType.Info);
             }
+
+            GUI.enabled = true;
         }
 
         private void DrawElementCallback(Rect rect, int index, bool isactive, bool isfocused)
