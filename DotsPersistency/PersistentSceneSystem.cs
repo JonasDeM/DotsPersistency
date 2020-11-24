@@ -71,6 +71,7 @@ namespace DotsPersistency
                         sceneSectionsToInit.Add(sceneSection);
                         requestInfo.CurrentLoadingStage = RequestPersistentSceneLoaded.Stage.Complete;
                     }
+                    _sceneLoadedCheckQuery.ResetFilter();
                 }
                 if (requestInfo.CurrentLoadingStage == RequestPersistentSceneLoaded.Stage.InitialStage)
                 {
@@ -171,6 +172,8 @@ namespace DotsPersistency
                 // this function takes ownership over the archetypes array
                 var initialStateContainer = PersistentDataStorage.InitializeSceneSection(sceneSection, dataLayouts);
                 _beginFrameSystem.RequestInitialStatePersist(initialStateContainer);
+                
+                _initEntitiesQuery.ResetFilter();
             }
         }
         

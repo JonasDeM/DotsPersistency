@@ -200,7 +200,8 @@ namespace DotsPersistency
                             OutputData = outputData
                         }.Schedule(query, inputDeps);
                     }
-
+                    
+                    query.ResetFilter();
                     returnJobHandle = JobHandle.CombineDependencies(returnJobHandle, jobHandle);
                 }
             }
@@ -286,6 +287,9 @@ namespace DotsPersistency
                         
                         jobHandle = JobHandle.CombineDependencies(compDataJobHandle1, compDataJobHandle2, compDataJobHandle3);
                     }
+                    
+                    query.ResetFilter();
+                    excludeQuery.ResetFilter();
                     returnJobHandle = JobHandle.CombineDependencies(returnJobHandle, jobHandle);
                 }
             }
@@ -300,6 +304,8 @@ namespace DotsPersistency
             query.SetSharedComponentFilter(sceneSection);
             
             throw new NotImplementedException();
+            
+            query.ResetFilter();
         }
 
         private JobHandle ScheduleApplyGroupedJob(JobHandle inputDeps, SceneSection sceneSection, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
@@ -328,6 +334,7 @@ namespace DotsPersistency
             componentTypeHandles.Dispose(inputDeps);
             bufferTypeHandles.Dispose(inputDeps);
             
+            query.ResetFilter();
             return inputDeps;
         }
         
