@@ -11,7 +11,7 @@ using Unity.Transforms;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-[assembly:InternalsVisibleTo("io.jonasdem.dotspersistency.editor")]
+[assembly:InternalsVisibleTo("io.jonasdem.quicksave.editor")]
 
 namespace DotsPersistency
 {
