@@ -94,6 +94,7 @@ namespace DotsPersistency
                 
                 if (requestInfo.CurrentLoadingStage == RequestPersistentSceneSectionLoaded.Stage.InitialStage)
                 {
+                    ecb.AddComponent<PersistentSceneSection>(entity);
                     requestInfo.CurrentLoadingStage = RequestPersistentSceneSectionLoaded.Stage.WaitingForContainer;
                 }
                 if (requestInfo.CurrentLoadingStage == RequestPersistentSceneSectionLoaded.Stage.WaitingForContainer && PersistentDataStorage.RequireContainer(sceneSection.SceneGUID))

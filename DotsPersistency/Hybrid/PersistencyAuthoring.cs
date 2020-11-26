@@ -16,7 +16,7 @@ namespace DotsPersistency.Hybrid
     {
         public List<string> FullTypeNamesToPersist = new List<string>();
 
-        public FixedList128<PersistableTypeHandle> GetPersistableTypeHandles(PersistencySettings persistencySettings)
+        internal FixedList128<PersistableTypeHandle> GetPersistableTypeHandles(PersistencySettings persistencySettings)
         {
             var retVal = new FixedList128<PersistableTypeHandle>();
             Debug.Assert(FullTypeNamesToPersist.Count <= retVal.Capacity, $"More than {retVal.Capacity} persisted ComponentData types is not supported");
@@ -34,10 +34,12 @@ namespace DotsPersistency.Hybrid
             return retVal;
         }
 
-        [Obsolete]
-        private int CalculateArrayIndex()
+        // The only reason for this is deterministic conversion
+        internal int CalculateArrayIndex(PersistencySettings persistencySettings)
         {
             Transform rootParent = transform;
+            Hash128 hash = persistencySettings.GetPersistableTypeHandleCombinationHash(GetPersistableTypeHandles(persistencySettings));
+            
             while (rootParent.parent)
             {
                 rootParent = rootParent.parent;
@@ -50,14 +52,14 @@ namespace DotsPersistency.Hybrid
                     break;
                 var compsInChildren = rootGameObject.GetComponentsInChildren<PersistencyAuthoring>();
                 
-                arrayIndex += compsInChildren.Count(comp => FullTypeNamesToPersist.SequenceEqual(comp.FullTypeNamesToPersist));
+                arrayIndex += compsInChildren.Count(comp => hash.Equals(persistencySettings.GetPersistableTypeHandleCombinationHash(comp.GetPersistableTypeHandles(persistencySettings))));
             }
             foreach (PersistencyAuthoring child in rootParent.GetComponentsInChildren<PersistencyAuthoring>())
             {
                 if (child == this)
                     break;
 
-                if (FullTypeNamesToPersist.SequenceEqual(child.FullTypeNamesToPersist))
+                if (hash.Equals(persistencySettings.GetPersistableTypeHandleCombinationHash(child.GetPersistableTypeHandles(persistencySettings))))
                 {
                     arrayIndex += 1;
                 }

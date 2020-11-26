@@ -1,6 +1,6 @@
 ﻿// Author: Jonas De Maeseneer
 
-using System;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEditor;
@@ -8,9 +8,11 @@ using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 // ReSharper disable AccessToDisposedClosure
 
+[assembly:InternalsVisibleTo("io.jonasdem.quicksave.editor")]
+
 namespace DotsPersistency.Hybrid
 {
-    [ConverterVersion("Jonas", 14)]
+    [ConverterVersion("Jonas", 15)]
     [UpdateInGroup(typeof(GameObjectAfterConversionGroup))]
     public class PersistencyConversionSystem : GameObjectConversionSystem
     {
@@ -60,7 +62,7 @@ namespace DotsPersistency.Hybrid
                 });
                 DstEntityManager.AddComponentData(e, new PersistenceState()
                 {
-                    ArrayIndex = persistencyArchetype.Amount
+                    ArrayIndex = persistencyAuthoring.CalculateArrayIndex(settings)
                 });
                 DstEntityManager.AddSharedComponentData(e, new PersistableTypeCombinationHash()
                 {
@@ -117,7 +119,7 @@ namespace DotsPersistency.Hybrid
         }
     }
     
-    [ConverterVersion("Jonas", 14)]
+    [ConverterVersion("Jonas", 15)]
     [UpdateInGroup(typeof(GameObjectDeclareReferencedObjectsGroup))]
     public class PersistencyConversionDependencySystem : GameObjectConversionSystem
     {
