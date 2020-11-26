@@ -11,29 +11,25 @@ namespace DotsPersistency
 {
     public interface IPersistentDataSerializer
     {
-        string GetResourcePath(SceneSection sceneSection);
-
         void WriteContainerData(PersistentDataContainer container);
         void ReadContainerData(PersistentDataContainer container);
     }
     
     public class DefaultPersistentDataSerializer : IPersistentDataSerializer
     {
-        public string GetResourcePath(SceneSection sceneSection)
+        public string GetResourcePath(Hash128 containerIdentifier)
         {
             StringBuilder sb = new StringBuilder(128);
             sb.Append(Application.streamingAssetsPath);
             sb.Append("/SavedSceneStates/");
-            sb.Append(sceneSection.SceneGUID.ToString());
-            sb.Append("_");
-            sb.Append(sceneSection.Section.ToString());
+            sb.Append(containerIdentifier.ToString());
             sb.Append(".sav");
             return sb.ToString();
         }
 
         public void WriteContainerData(PersistentDataContainer container)
         {
-            string path = GetResourcePath(container.SceneSection);
+            string path = GetResourcePath(container.DataIdentifier);
             string folderPath = Path.GetDirectoryName(path);
             if (!Directory.Exists(folderPath))
             {
@@ -49,7 +45,7 @@ namespace DotsPersistency
 
         public void ReadContainerData(PersistentDataContainer container)
         {
-            string path = GetResourcePath(container.SceneSection);
+            string path = GetResourcePath(container.DataIdentifier);
             Debug.Assert(File.Exists(path));
             
             using (var fileStream = new FileStream(path, FileMode.Open))

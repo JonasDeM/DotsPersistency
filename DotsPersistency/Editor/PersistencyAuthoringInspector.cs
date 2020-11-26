@@ -37,12 +37,12 @@ namespace DotsPersistency.Editor
             }
             
             var singleTarget = ((PersistencyAuthoring) target);
-            string index = singleTarget.CalculateArrayIndex().ToString();
+            // string index = singleTarget.CalculateArrayIndex().ToString();
             string hashAmount = singleTarget.FullTypeNamesToPersist.Count.ToString();
-            if (targets.Length != 1)
-            {
-                index = "--Mixed Values--";
-            }
+            // if (targets.Length != 1)
+            // {
+            //     index = "--Mixed Values--";
+            // }
 
             bool sameHashes = true;
             List<string> fullTypeNames = singleTarget.FullTypeNamesToPersist;
@@ -59,7 +59,7 @@ namespace DotsPersistency.Editor
             }
 
             GUI.enabled = false;
-            EditorGUILayout.TextField("ArrayIndex", index);
+            // EditorGUILayout.TextField("ArrayIndex", index);
             EditorGUILayout.TextField("Amount Persistent Components", sameHashes ? hashAmount : "--Mixed Values--");
             GUI.enabled = true;
 

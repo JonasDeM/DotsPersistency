@@ -3,7 +3,7 @@ using Unity.Entities;
 
 namespace DotsPersistency
 {
-    public struct RequestPersistentSceneLoaded : IComponentData
+    public struct RequestPersistentSceneSectionLoaded : IComponentData
     {
         public SceneLoadFlags LoadFlags;
         public Stage CurrentLoadingStage;
@@ -16,16 +16,11 @@ namespace DotsPersistency
         }
     }
 
-    // Persisting on load always happens!
-    public enum PersistingStrategy
-    { 
-        None = 0,
-        OnUnLoad = 1,
-        OnRequest = 2
+    public struct PersistentSceneSectionLoadComplete : IComponentData
+    {
     }
 
-    public struct PersistingSceneType : ISharedComponentData
+    public struct DisableAutoPersistOnUnload : IComponentData
     {
-        public PersistingStrategy PersistingStrategy;
     }
 }

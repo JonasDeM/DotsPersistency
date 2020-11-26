@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using Unity.Collections;
+﻿using Unity.Collections;
 using Unity.Entities;
 using Unity.Scenes;
 using Debug = UnityEngine.Debug;
@@ -16,7 +13,9 @@ namespace DotsPersistency
     public class PersistentSceneSystem : SystemBase
     {
         private EntityQuery _initEntitiesQuery;
-        private EntityQuery _sceneLoadedCheckQuery;
+        private EntityQuery _sceneSectionLoadedCheckQuery;
+        private EntityQuery _scenePersistencyInfoQuery;
+        
         public PersistentDataStorage PersistentDataStorage { get; private set; }
         protected PersistencySettings PersistencySettings;
 
@@ -31,150 +30,189 @@ namespace DotsPersistency
                 Enabled = false;
                 Debug.Log(PersistencySettings.NotFoundMessage);
             }
+            PersistentDataStorage = new PersistentDataStorage(1);
             
             _beginFrameSystem = World.GetOrCreateSystem<BeginFramePersistencySystem>();
-            PersistentDataStorage = new PersistentDataStorage(1);
-            _sceneLoadedCheckQuery = GetEntityQuery(ComponentType.ReadOnly<SceneSection>());
-            
+            _ecbSystem = World.GetOrCreateSystem<EndInitializationEntityCommandBufferSystem>();
+
             _initEntitiesQuery = GetEntityQuery(new EntityQueryDesc(){ 
-                All = new [] {ComponentType.ReadOnly<PersistencyArchetype>(), ComponentType.ReadOnly<SceneSection>()},
+                All = new [] {ComponentType.ReadOnly<PersistableTypeCombinationHash>(), ComponentType.ReadOnly<PersistencyContainerTag>()},
+                None = new []{ ComponentType.ReadOnly<PersistencyArchetypeDataLayout>() },
                 Options = EntityQueryOptions.IncludeDisabled
             });
-            
-            RequireForUpdate(GetEntityQuery(ComponentType.ReadOnly<RequestPersistentSceneLoaded>(), ComponentType.ReadOnly<SceneSectionData>()));
-            
-            _ecbSystem = World.GetOrCreateSystem<EndInitializationEntityCommandBufferSystem>();
+            _scenePersistencyInfoQuery = GetEntityQuery(ComponentType.ReadOnly<ScenePersistencyInfo>(), ComponentType.ReadOnly<PersistencyContainerTag>());
+            _sceneSectionLoadedCheckQuery = GetEntityQuery(ComponentType.ReadOnly<SceneSection>());
+            RequireForUpdate(GetEntityQuery(ComponentType.ReadOnly<RequestPersistentSceneSectionLoaded>(), ComponentType.ReadOnly<SceneSectionData>(), ComponentType.Exclude<PersistentSceneSectionLoadComplete>()));
         }
 
         protected override void OnUpdate()
         {
-            EntityCommandBuffer ecb = _ecbSystem.CreateCommandBuffer();
-            NativeList<SceneSection> sceneSectionsToInit = new NativeList<SceneSection>(2, Allocator.Temp);
-            
-            Entities.ForEach((Entity entity, ref RequestPersistentSceneLoaded requestInfo, in SceneSectionData sceneSectionData) =>
+            UpdateSceneLoading(out NativeList<SceneSection> sceneSectionsToInit);
+
+            if (sceneSectionsToInit.Length == 0)
             {
+                return;
+            }
+            
+            EntityCommandBuffer immediateStructuralChanges = new EntityCommandBuffer(Allocator.TempJob, PlaybackPolicy.SinglePlayback);
+
+            for (int i = 0; i < sceneSectionsToInit.Length; i++)
+            {
+                InitSceneSection(sceneSectionsToInit[i], immediateStructuralChanges);
+            }
+            
+            // Clean up any init-only data
+            _scenePersistencyInfoQuery.ResetFilter();
+            _initEntitiesQuery.ResetFilter();
+            immediateStructuralChanges.DestroyEntity(_scenePersistencyInfoQuery);
+            immediateStructuralChanges.RemoveComponent<PersistableTypeCombinationHash>(_initEntitiesQuery);
+            
+            // Do the structural changes immediately since BeginFramePersistencySystem needs to to the initial persist
+            immediateStructuralChanges.Playback(EntityManager);
+            
+            immediateStructuralChanges.Dispose();
+            sceneSectionsToInit.Dispose();
+        }
+
+        public void UpdateSceneLoading(out NativeList<SceneSection> sceneSectionsToInit)
+        {
+            NativeList<SceneSection> completeSceneSections = new NativeList<SceneSection>(4, Allocator.Temp);
+            
+            EntityCommandBuffer ecb = _ecbSystem.CreateCommandBuffer();
+            Entities.WithNone<PersistentSceneSectionLoadComplete>().ForEach((Entity entity, ref RequestPersistentSceneSectionLoaded requestInfo, in SceneSectionData sceneSectionData) =>
+            {
+                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneSectionLoaded.Stage.Complete)
+                {
+                    return;
+                }
+                
                 SceneSection sceneSection = new SceneSection
                 {
                     Section = sceneSectionData.SubSectionIndex,
                     SceneGUID = sceneSectionData.SceneGUID
                 };
-
-                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneLoaded.Stage.Complete)
+                
+                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneSectionLoaded.Stage.InitialStage)
                 {
-                    return;
+                    requestInfo.CurrentLoadingStage = RequestPersistentSceneSectionLoaded.Stage.WaitingForContainer;
                 }
-                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneLoaded.Stage.WaitingForSceneLoad)
-                {
-                    _sceneLoadedCheckQuery.SetSharedComponentFilter(sceneSection);
-                    if (_sceneLoadedCheckQuery.CalculateChunkCount() > 0)
-                    {
-                        sceneSectionsToInit.Add(sceneSection);
-                        requestInfo.CurrentLoadingStage = RequestPersistentSceneLoaded.Stage.Complete;
-                    }
-                    _sceneLoadedCheckQuery.ResetFilter();
-                }
-                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneLoaded.Stage.InitialStage)
-                {
-                    requestInfo.CurrentLoadingStage = RequestPersistentSceneLoaded.Stage.WaitingForContainer;
-                }
-                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneLoaded.Stage.WaitingForContainer && PersistentDataStorage.RequireContainer(sceneSection))
+                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneSectionLoaded.Stage.WaitingForContainer && PersistentDataStorage.RequireContainer(sceneSection.SceneGUID))
                 {
                     // After the container is available actually start loading the scene
                     ecb.AddComponent(entity, new RequestSceneLoaded()
                     {
                         LoadFlags = requestInfo.LoadFlags
                     });
-                    requestInfo.CurrentLoadingStage = RequestPersistentSceneLoaded.Stage.WaitingForSceneLoad;
+                    requestInfo.CurrentLoadingStage = RequestPersistentSceneSectionLoaded.Stage.WaitingForSceneLoad;
                 }
-            }).WithoutBurst().Run();
-            
-            var uniqueSharedCompData = new List<PersistencyArchetype>();
-            EntityManager.GetAllUniqueSharedComponentData(uniqueSharedCompData);
-            uniqueSharedCompData.Remove(default);
-
-            EntityCommandBuffer immediateStructuralChanges = new EntityCommandBuffer(Allocator.TempJob, PlaybackPolicy.SinglePlayback);
-            foreach (var sceneSection in sceneSectionsToInit)
-            {
-                InitSceneSection(sceneSection, uniqueSharedCompData, immediateStructuralChanges);
-            }
-            immediateStructuralChanges.Playback(EntityManager);
-            immediateStructuralChanges.Dispose();
-        }
-
-        public void RequestRollback(int index)
-        {
-            PersistentDataStorage.ToIndex(index);
-            Entities.ForEach((ref RequestPersistentSceneLoaded requestInfo, in SceneSectionData sceneSectionData) =>
-            {
-                SceneSection sceneSection = new SceneSection{Section = sceneSectionData.SubSectionIndex, SceneGUID = sceneSectionData.SceneGUID};
-                if (requestInfo.CurrentLoadingStage != RequestPersistentSceneLoaded.Stage.Complete)
+                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneSectionLoaded.Stage.WaitingForSceneLoad)
                 {
-                    Debug.Log($"A scene section ({sceneSection.SceneGUID}, {sceneSection.Section}) was loading while a rollback was requested, the scene section won't be rolled back. TODO This scene should on load get 'rolled forward' to a recent tick on the server then the rollback can happen again to the oldest tick not only from input but from roll forward too.");
-                    return;
+                    // Pls make SceneSectionStreamingSystem.StreamingState public :) @unity
+                    _sceneSectionLoadedCheckQuery.SetSharedComponentFilter(sceneSection);
+                    if (_sceneSectionLoadedCheckQuery.CalculateChunkCount() > 0)
+                    {
+                        completeSceneSections.Add(sceneSection);
+                        ecb.AddComponent<PersistentSceneSectionLoadComplete>(entity);
+                        requestInfo.CurrentLoadingStage = RequestPersistentSceneSectionLoaded.Stage.Complete;
+                    }
                 }
-                _beginFrameSystem.RequestApply(PersistentDataStorage.GetReadContainerForCurrentIndex(sceneSection));
             }).WithoutBurst().Run();
-        }
-        
-        public void ResetScene()
-        {
-            PersistentDataStorage.ToIndex(0);
-            Entities.ForEach((ref RequestPersistentSceneLoaded requestInfo, in SceneSectionData sceneSectionData) =>
-            {
-                SceneSection sceneSection = new SceneSection{Section = sceneSectionData.SubSectionIndex, SceneGUID = sceneSectionData.SceneGUID};
-                _beginFrameSystem.RequestApply(PersistentDataStorage.GetInitialState(sceneSection));
-            }).WithoutBurst().Run();
+
+            _sceneSectionLoadedCheckQuery.ResetFilter();
+            sceneSectionsToInit = completeSceneSections;
         }
 
-        private void InitSceneSection(SceneSection sceneSection, List<PersistencyArchetype> persistencyArchetypes, EntityCommandBuffer ecb)
+        private void InitSceneSection(SceneSection sceneSection, EntityCommandBuffer ecb)
         {
-            if (PersistentDataStorage.IsSceneSectionInitialized(sceneSection))
+            Hash128 containerIdentifier = sceneSection.SceneGUID;
+            PersistencyContainerTag containerTag = new PersistencyContainerTag() {DataIdentifier = containerIdentifier};
+            
+            if (PersistentDataStorage.IsInitialized(containerIdentifier))
             {
-                PersistentDataContainer latestState = PersistentDataStorage.GetLatestWrittenState(sceneSection, out bool isInitial);
+                PersistentDataContainer latestState = PersistentDataStorage.GetLatestWrittenState(containerIdentifier, out bool isInitial);
                 for (int i = 0; i < latestState.Count; i++)
                 {
                     PersistencyArchetypeDataLayout dataLayout = latestState.GetPersistenceArchetypeDataLayoutAtIndex(i);
-                    _initEntitiesQuery.SetSharedComponentFilter(dataLayout.ToPersistencyArchetype(), sceneSection);
+                    _initEntitiesQuery.SetSharedComponentFilter(new PersistableTypeCombinationHash {Value = dataLayout.PersistableTypeHandleCombinationHash}, containerTag);
                     
                     ecb.AddSharedComponent(_initEntitiesQuery, dataLayout);
-                    ecb.RemoveComponent<PersistencyArchetype>(_initEntitiesQuery);
                 }
 
                 _beginFrameSystem.RequestApply(latestState);
             }
             else
             {
+                _scenePersistencyInfoQuery.SetSharedComponentFilter(containerTag);
+                var scenePersistencyInfo = _scenePersistencyInfoQuery.GetSingleton<ScenePersistencyInfo>();
+                ref BlobArray<PersistencyArchetype> persistencyArchetypes = ref scenePersistencyInfo.PersistencyArchetypes.Value; 
+                
                 int offset = 0;
-                var dataLayouts = new NativeArray<PersistencyArchetypeDataLayout>(persistencyArchetypes.Count, Allocator.Persistent);
-                for (var i = 0; i < persistencyArchetypes.Count; i++)
+                var dataLayouts = new NativeArray<PersistencyArchetypeDataLayout>(persistencyArchetypes.Length, Allocator.Persistent);
+                for (var i = 0; i < persistencyArchetypes.Length; i++)
                 {
                     var persistencyArchetype = persistencyArchetypes[i];
-                    _initEntitiesQuery.SetSharedComponentFilter(persistencyArchetype, sceneSection);
-                    int amount = _initEntitiesQuery.CalculateEntityCount();
-                    if (amount <= 0) 
-                        continue;
-                
+
+                    var hashFilter = new PersistableTypeCombinationHash
+                    {
+                        Value = persistencyArchetype.PersistableTypeHandleCombinationHash
+                    };
+                    
+                    _initEntitiesQuery.SetSharedComponentFilter(hashFilter, containerTag);
+                    
                     var dataLayout = new PersistencyArchetypeDataLayout()
                     {
-                        Amount = _initEntitiesQuery.CalculateEntityCount(),
+                        Amount = persistencyArchetype.Amount,
                         ArchetypeIndexInContainer = (ushort)i,
-                        PersistedTypeInfoArrayRef = persistencyArchetype.BuildTypeInfoBlobAsset(PersistencySettings, amount, out int sizePerEntity),
+                        PersistedTypeInfoArrayRef = persistencyArchetype.BuildTypeInfoBlobAsset(PersistencySettings, persistencyArchetype.Amount, out int sizePerEntity),
                         SizePerEntity = sizePerEntity,
-                        Offset = offset
+                        Offset = offset,
+                        PersistableTypeHandleCombinationHash = hashFilter.Value
                     };
-                    offset += amount * sizePerEntity;
+                    offset += persistencyArchetype.Amount * sizePerEntity;
 
                     dataLayouts[i] = dataLayout;
                     ecb.AddSharedComponent(_initEntitiesQuery, dataLayout);
-                    ecb.RemoveComponent<PersistencyArchetype>(_initEntitiesQuery);
                 }
 
-                // this function takes ownership over the archetypes array
-                var initialStateContainer = PersistentDataStorage.InitializeSceneSection(sceneSection, dataLayouts);
+                // this function takes ownership over the dataLayouts array
+                var initialStateContainer = PersistentDataStorage.InitializeScene(containerIdentifier, dataLayouts);
                 _beginFrameSystem.RequestInitialStatePersist(initialStateContainer);
-                
-                _initEntitiesQuery.ResetFilter();
             }
+        }
+        
+        public void RequestRollback(int storageIndex)
+        {
+            PersistentDataStorage.ToIndex(storageIndex);
+            Entities.ForEach((in SceneReference sceneReference, in DynamicBuffer<ResolvedSectionEntity> sceneSections) =>
+            {
+                for (int i = 0; i < sceneSections.Length; i++)
+                {
+                    Entity sceneSectionEntity = sceneSections[i].SectionEntity;
+                    if (HasComponent<PersistentSceneSectionLoadComplete>(sceneSectionEntity))
+                    {
+                        _beginFrameSystem.RequestApply(PersistentDataStorage.GetReadContainerForCurrentIndex(sceneReference.SceneGUID));
+                        return;
+                    }
+                }
+            }).WithoutBurst().Run();
+        }
+        
+        public void RequestFullReset()
+        {
+            PersistentDataStorage.ToIndex(0);
+            
+            Entities.ForEach((in SceneReference sceneReference, in DynamicBuffer<ResolvedSectionEntity> sceneSections) =>
+            {
+                for (int i = 0; i < sceneSections.Length; i++)
+                {
+                    Entity sceneSectionEntity = sceneSections[i].SectionEntity;
+                    if (HasComponent<PersistentSceneSectionLoadComplete>(sceneSectionEntity))
+                    {
+                        _beginFrameSystem.RequestApply(PersistentDataStorage.GetInitialState(sceneReference.SceneGUID));
+                        return;
+                    }
+                }
+            }).WithoutBurst().Run();
         }
         
         public void ReplaceCurrentDataStorage(PersistentDataStorage storage)

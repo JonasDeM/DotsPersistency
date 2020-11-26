@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency
 {
@@ -23,9 +24,10 @@ namespace DotsPersistency
             _ecbSystem = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
             _containerSystem = World.GetOrCreateSystem<PersistentSceneSystem>();
 
-            _unloadStreamRequests = GetEntityQuery(ComponentType.Exclude<RequestPersistentSceneLoaded>()
-                , ComponentType.ReadOnly<RequestSceneLoaded>(), ComponentType.ReadOnly<SceneSectionData>(), ComponentType.ReadOnly<PersistingSceneType>());
-            _unloadStreamRequests.SetSharedComponentFilter(new PersistingSceneType() {PersistingStrategy = PersistingStrategy.OnUnLoad});
+            _unloadStreamRequests = GetEntityQuery(ComponentType.ReadOnly<SceneSectionData>(),
+                ComponentType.ReadOnly<RequestSceneLoaded>(),
+                ComponentType.Exclude<RequestPersistentSceneSectionLoaded>(),
+                ComponentType.Exclude<DisableAutoPersistOnUnload>());
             RequireForUpdate(_unloadStreamRequests);
         }
     
@@ -34,19 +36,20 @@ namespace DotsPersistency
             JobHandle inputDependencies = Dependency;
 
             var sceneSectionsToUnload = _unloadStreamRequests.ToComponentDataArray<SceneSectionData>(Allocator.TempJob);
+            var tempHashSet = new NativeHashSet<Hash128>(4, Allocator.Temp);
             foreach (SceneSectionData sceneSectionData in sceneSectionsToUnload)
             {
-                SceneSection sceneSectionToPersist = new SceneSection()
+                var containerIdentifier = sceneSectionData.SceneGUID;
+                if (!tempHashSet.Contains(containerIdentifier))
                 {
-                    Section = sceneSectionData.SubSectionIndex,
-                    SceneGUID = sceneSectionData.SceneGUID
-                };
-
-                var writeContainer = _containerSystem.PersistentDataStorage.GetWriteContainerForCurrentIndex(sceneSectionToPersist);
-                Dependency = JobHandle.CombineDependencies(Dependency,
-                    SchedulePersist(inputDependencies, sceneSectionToPersist, writeContainer));
+                    var writeContainer = _containerSystem.PersistentDataStorage.GetWriteContainerForCurrentIndex(containerIdentifier);
+                    Dependency = JobHandle.CombineDependencies(Dependency, SchedulePersist(inputDependencies, writeContainer));
+                    tempHashSet.Add(containerIdentifier);
+                }
+                
             }
             sceneSectionsToUnload.Dispose();
+            tempHashSet.Dispose();
             
             // this will trigger the actual unload
             _ecbSystem.CreateCommandBuffer().RemoveComponent<RequestSceneLoaded>(_unloadStreamRequests);

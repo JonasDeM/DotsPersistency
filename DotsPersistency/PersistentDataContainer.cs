@@ -7,12 +7,15 @@ namespace DotsPersistency
 {
     public struct PersistentDataContainer : IDisposable
     {
+        // All data for a single subscene is stored in this array
         private NativeArray<byte> _data;
+        
+        // Containers with the same data identifier contain data from the same entities
+        public Hash128 DataIdentifier => _dataIdentifier;
+        private Hash128 _dataIdentifier;
+        
+        // Doesn't own this container
         private NativeArray<PersistencyArchetypeDataLayout> _persistenceArchetypesDataLayouts;
-        internal NativeArray<PersistencyArchetypeDataLayout> PersistencyArchetypeDataLayouts => _persistenceArchetypesDataLayouts;
-            
-        public SceneSection SceneSection => _sceneSection;
-        private SceneSection _sceneSection;
 
         public int Tick
         {
@@ -23,9 +26,9 @@ namespace DotsPersistency
 
         public int Count => _persistenceArchetypesDataLayouts.Length;
 
-        public PersistentDataContainer(SceneSection sceneSection, NativeArray<PersistencyArchetypeDataLayout> persistenceArchetypesDataLayouts, Allocator allocator)
+        public PersistentDataContainer(Hash128 dataIdentifier, NativeArray<PersistencyArchetypeDataLayout> persistenceArchetypesDataLayouts, Allocator allocator)
         {
-            _sceneSection = sceneSection;
+            _dataIdentifier = dataIdentifier;
             _tick = 0;
             _persistenceArchetypesDataLayouts = persistenceArchetypesDataLayouts;
 

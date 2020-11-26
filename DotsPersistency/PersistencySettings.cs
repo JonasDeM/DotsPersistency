@@ -94,6 +94,34 @@ namespace DotsPersistency
         {
             return _typeIndexLookup;
         }
+        
+        public Unity.Entities.Hash128 GetPersistableTypeHandleCombinationHash(FixedList128<PersistableTypeHandle> persistableTypeHandles)
+        {
+            ulong hash1 = 0;
+            ulong hash2 = 0;
+
+            for (int i = 0; i < persistableTypeHandles.Length; i++)
+            {
+                unchecked
+                {
+                    if (i%2 == 0)
+                    {
+                        ulong hash = 17;
+                        hash = hash * 31 + hash1;
+                        hash = hash * 31 + (ulong)persistableTypeHandles[i].Handle.GetHashCode();
+                        hash1 = hash;
+                    }
+                    else
+                    {
+                        ulong hash = 17;
+                        hash = hash * 31 + hash2;
+                        hash = hash * 31 + (ulong)persistableTypeHandles[i].Handle.GetHashCode();
+                        hash2 = hash;
+                    }
+                }
+            }
+            return new UnityEngine.Hash128(hash1, hash2);
+        }
 
         public static bool IsSupported(TypeManager.TypeInfo info, out string notSupportedReason)
         {

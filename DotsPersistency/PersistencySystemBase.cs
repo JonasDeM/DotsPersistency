@@ -12,6 +12,7 @@ namespace DotsPersistency
     {
         private readonly Dictionary<ComponentType, EntityQuery> _queryCache = new Dictionary<ComponentType, EntityQuery>(32, new CustomComparer());
         protected PersistencySettings PersistencySettings;
+        protected EntityQuery PersistableEntitiesQuery;
         
         protected void InitializeReadOnly()
         {
@@ -21,11 +22,16 @@ namespace DotsPersistency
                 Enabled = false;
                 return;
             }
-            
-            foreach (PersistableTypeInfo persistableTypeInfo in PersistencySettings.AllPersistableTypeInfos)
+
+            PersistableEntitiesQuery = CreateEntityQuery();
+
+            if (!PersistencySettings.UseGroupedJobs())
             {
-                persistableTypeInfo.ValidityCheck();
-                CacheQuery(ComponentType.ReadOnly(TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash)));
+                foreach (PersistableTypeInfo persistableTypeInfo in PersistencySettings.AllPersistableTypeInfos)
+                {
+                    persistableTypeInfo.ValidityCheck();
+                    CacheQuery(ComponentType.ReadOnly(TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash)));
+                }
             }
         }
         
@@ -38,17 +44,20 @@ namespace DotsPersistency
                 return;
             }
             
-            _queryCache.Add(ComponentType.ReadOnly<PersistenceState>(), CreatePersistenceEntityQuery());
-
-            foreach (PersistableTypeInfo persistableTypeInfo in PersistencySettings.AllPersistableTypeInfos)
+            PersistableEntitiesQuery = CreateEntityQuery();
+            
+            if (!PersistencySettings.UseGroupedJobs())
             {
-                persistableTypeInfo.ValidityCheck();
-                ComponentType componentType = ComponentType.ReadWrite(TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash));
-                ComponentType excludeComponentType = componentType;
-                excludeComponentType.AccessModeType = ComponentType.AccessMode.Exclude;
-                
-                CacheQuery(componentType);
-                CacheQuery(excludeComponentType);
+                foreach (PersistableTypeInfo persistableTypeInfo in PersistencySettings.AllPersistableTypeInfos)
+                {
+                    persistableTypeInfo.ValidityCheck();
+                    ComponentType componentType = ComponentType.ReadWrite(TypeManager.GetTypeIndexFromStableTypeHash(persistableTypeInfo.StableTypeHash));
+                    ComponentType excludeComponentType = componentType;
+                    excludeComponentType.AccessModeType = ComponentType.AccessMode.Exclude;
+
+                    CacheQuery(componentType);
+                    CacheQuery(excludeComponentType);
+                }
             }
         }
 
@@ -57,7 +66,7 @@ namespace DotsPersistency
             Debug.Assert(type.TypeIndex != -1, "PersistencyJobSystem::CacheQuery Invalid type, try force updating RuntimePersistableTypesInfo (search the asset & press the force update button)");
             Debug.Assert(PersistencySettings.IsSupported(TypeManager.GetTypeInfo(type.TypeIndex), out string reason), reason);
             
-            var query = CreatePersistenceEntityQuery(type);
+            var query = CreateEntityQuery(type);
             _queryCache.Add(type, query);
             
             // a read/write query can also be used for read only operations
@@ -73,7 +82,7 @@ namespace DotsPersistency
             return _queryCache[persistedType];
         }
         
-        private EntityQuery CreatePersistenceEntityQuery(ComponentType persistedType)
+        private EntityQuery CreateEntityQuery(ComponentType persistedType)
         {
             EntityQueryDesc queryDesc;
 
@@ -85,8 +94,7 @@ namespace DotsPersistency
                     All = new[]
                     {
                         ComponentType.ReadOnly<PersistencyArchetypeDataLayout>(),
-                        ComponentType.ReadOnly<PersistenceState>(),
-                        ComponentType.ReadOnly<SceneSection>()
+                        ComponentType.ReadOnly<PersistenceState>()
                     },
                     None = new [] {persistedType},
                     Options = EntityQueryOptions.IncludeDisabled
@@ -100,7 +108,6 @@ namespace DotsPersistency
                     {
                         ComponentType.ReadOnly<PersistencyArchetypeDataLayout>(),
                         ComponentType.ReadOnly<PersistenceState>(),
-                        ComponentType.ReadOnly<SceneSection>(),
                         persistedType
                     },
                     Options = EntityQueryOptions.IncludeDisabled
@@ -111,15 +118,16 @@ namespace DotsPersistency
             return query;
         }
         
-        private EntityQuery CreatePersistenceEntityQuery()
+        private EntityQuery CreateEntityQuery()
         {
             EntityQueryDesc queryDesc = new EntityQueryDesc
             {
                 All = new[]
                 {
                     ComponentType.ReadOnly<PersistencyArchetypeDataLayout>(),
+                    ComponentType.ReadOnly<PersistencyArchetypeIndexInContainer>(),
                     ComponentType.ReadOnly<PersistenceState>(),
-                    ComponentType.ReadOnly<SceneSection>()
+                    ComponentType.ReadOnly<PersistencyContainerTag>()
                 },
                 Options = EntityQueryOptions.IncludeDisabled
             };
@@ -128,23 +136,23 @@ namespace DotsPersistency
             return query;
         }
         
-        protected JobHandle SchedulePersist(JobHandle inputDeps, SceneSection sceneSection, PersistentDataContainer dataContainer)
+        protected JobHandle SchedulePersist(JobHandle inputDeps, PersistentDataContainer dataContainer)
         {
             if (PersistencySettings.UseGroupedJobs())
-                return SchedulePersistGroupedJob(inputDeps, sceneSection, dataContainer);
+                return SchedulePersistGroupedJob(inputDeps, dataContainer);
             else
-                return SchedulePersistJobs(inputDeps, sceneSection, dataContainer);
+                return SchedulePersistJobs(inputDeps, dataContainer);
         }
 
-        protected JobHandle ScheduleApply(JobHandle inputDeps, SceneSection sceneSection, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
+        protected JobHandle ScheduleApply(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
         {
             if (PersistencySettings.UseGroupedJobs())
-                return ScheduleApplyGroupedJob(inputDeps, sceneSection, dataContainer, ecbSystem);
+                return ScheduleApplyGroupedJob(inputDeps, dataContainer, ecbSystem);
             else
-                return ScheduleApplyJobs(inputDeps, sceneSection, dataContainer, ecbSystem);
+                return ScheduleApplyJobs(inputDeps, dataContainer, ecbSystem);
         }
         
-        private JobHandle SchedulePersistJobs(JobHandle inputDeps, SceneSection sceneSection, PersistentDataContainer dataContainer)
+        private JobHandle SchedulePersistJobs(JobHandle inputDeps, PersistentDataContainer dataContainer)
         {
             var returnJobHandle = inputDeps;
             var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
@@ -165,7 +173,7 @@ namespace DotsPersistency
                     
                     // query
                     var query = GetCachedQuery(runtimeType);
-                    query.SetSharedComponentFilter(sceneSection, dataLayout);
+                    query.SetSharedComponentFilter(dataLayout);
                     
                     // Grab containers
                     var outputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
@@ -209,7 +217,7 @@ namespace DotsPersistency
             return returnJobHandle;
         }
         
-        private JobHandle ScheduleApplyJobs(JobHandle inputDeps, SceneSection sceneSection, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
+        private JobHandle ScheduleApplyJobs(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
         {
             var returnJobHandle = inputDeps;
             var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
@@ -230,11 +238,11 @@ namespace DotsPersistency
                     
                     // query
                     var query = GetCachedQuery(runtimeType);
-                    query.SetSharedComponentFilter(sceneSection, dataLayout);
+                    query.SetSharedComponentFilter(dataLayout);
                     var excludeType = runtimeType;
                     excludeType.AccessModeType = ComponentType.AccessMode.Exclude;
                     var excludeQuery = GetCachedQuery(excludeType);
-                    excludeQuery.SetSharedComponentFilter(sceneSection, dataLayout);
+                    excludeQuery.SetSharedComponentFilter(dataLayout);
                     
                     // Grab read-only containers
                     var inputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
@@ -297,35 +305,33 @@ namespace DotsPersistency
             return returnJobHandle;
         }
         
-        private JobHandle SchedulePersistGroupedJob(JobHandle inputDeps, SceneSection sceneSection, PersistentDataContainer dataContainer)
+        private JobHandle SchedulePersistGroupedJob(JobHandle inputDeps, PersistentDataContainer dataContainer)
         {
-            // filter on scene section
-            EntityQuery query = GetEntityQuery(typeof(PersistenceState), typeof(SceneSection), typeof(PersistencyArchetypeDataLayout)); // todo use cached query
-            query.SetSharedComponentFilter(sceneSection);
-            
             throw new NotImplementedException();
             
-            query.ResetFilter();
+            // query.ResetFilter();
         }
 
-        private JobHandle ScheduleApplyGroupedJob(JobHandle inputDeps, SceneSection sceneSection, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
+        private JobHandle ScheduleApplyGroupedJob(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
         {
-            // filter on scene section
-            EntityQuery query = GetEntityQuery(typeof(PersistenceState), typeof(SceneSection), typeof(PersistencyArchetypeDataLayout)); // todo use cached query
-            query.SetSharedComponentFilter(sceneSection);
+            EntityQuery query = GetEntityQuery(typeof(PersistenceState), typeof(PersistencyContainerTag), typeof(PersistencyArchetypeIndexInContainer)); // todo use cached query
+            query.SetSharedComponentFilter(new PersistencyContainerTag() { DataIdentifier = dataContainer.DataIdentifier});
             
-            throw new NotImplementedException();
-            
-            // todo fill these
+            // todo use only grab these once per update
+            var entityTypeHandle = GetEntityTypeHandle();
+            var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>();
+            var persistencyArchetypeIndexInContainerTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>();
+
+            // todo cache a list of type indices in the container
             ComponentTypeHandleArray componentTypeHandles = new ComponentTypeHandleArray(0, Allocator.TempJob);
             BufferTypeHandleArray bufferTypeHandles = new BufferTypeHandleArray(0, Allocator.TempJob);
             
             inputDeps = new GroupedApplyJob()
             {
                 DataContainer = dataContainer,
-                EntityTypeHandle = GetEntityTypeHandle(),
-                PersistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(),
-                PersistencyArchetypeIndexInContainerTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>(),
+                EntityTypeHandle = entityTypeHandle,
+                PersistenceStateTypeHandle = persistenceStateTypeHandle,
+                PersistencyArchetypeIndexInContainerTypeHandle = persistencyArchetypeIndexInContainerTypeHandle,
                 DynamicComponentTypeHandles = componentTypeHandles,
                 DynamicBufferTypeHandles = bufferTypeHandles,
                 TypeIndexLookup = PersistencySettings.GetTypeIndexLookup(),

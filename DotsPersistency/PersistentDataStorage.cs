@@ -6,6 +6,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency
 {
@@ -24,7 +25,7 @@ namespace DotsPersistency
         private int _nonWrappedIndex;
         public int NonWrappedIndex => _nonWrappedIndex;
         public readonly int RingBufferSize;
-        private Dictionary<SceneSection, ArchetypesWithStates> _allPersistedData = new Dictionary<SceneSection, ArchetypesWithStates>(8);
+        private Dictionary<Hash128, ArchetypesWithStates> _allPersistedData = new Dictionary<Hash128, ArchetypesWithStates>(8);
         private IPersistentDataSerializer _serializer = new DefaultPersistentDataSerializer();
         
         public PersistentDataStorage(int ringBufferSize)
@@ -52,33 +53,33 @@ namespace DotsPersistency
             _nonWrappedIndex = nonWrappedIndex;
         }
 
-        public PersistentDataContainer GetWriteContainerForCurrentIndex(SceneSection sceneSection)
+        public PersistentDataContainer GetWriteContainerForCurrentIndex(Hash128 identifier)
         {
-            var data = _allPersistedData[sceneSection];
+            var data = _allPersistedData[identifier];
             data.LatestWriteIndex = _ringBufferIndex;
-            _allPersistedData[sceneSection] = data;
+            _allPersistedData[identifier] = data;
             _latestWriteNonWrappedIndex = _nonWrappedIndex;
             return data.RingBuffer[_ringBufferIndex];
         }
         
-        public PersistentDataContainer GetReadContainerForCurrentIndex(SceneSection sceneSection)
+        public PersistentDataContainer GetReadContainerForCurrentIndex(Hash128 identifier)
         {
-            return _allPersistedData[sceneSection].RingBuffer[_ringBufferIndex];
+            return _allPersistedData[identifier].RingBuffer[_ringBufferIndex];
         }
 
-        public virtual bool RequireContainer(SceneSection sceneSection)
+        public virtual bool RequireContainer(Hash128 identifier)
         {
             return true;
         }
 
         // returns initial state container, so it would be used to persist the initial state
-        public PersistentDataContainer InitializeSceneSection(SceneSection sceneSection, NativeArray<PersistencyArchetypeDataLayout> archetypes)
+        public PersistentDataContainer InitializeScene(Hash128 identifier, NativeArray<PersistencyArchetypeDataLayout> archetypes)
         {
-            Debug.Assert(!_allPersistedData.ContainsKey(sceneSection));
+            Debug.Assert(!_allPersistedData.ContainsKey(identifier));
             var newData = new ArchetypesWithStates()
             {
                 Archetypes = archetypes,
-                InitialSceneState = new PersistentDataContainer(sceneSection, archetypes, Allocator.Persistent),
+                InitialSceneState = new PersistentDataContainer(identifier, archetypes, Allocator.Persistent),
                 RingBuffer = new List<PersistentDataContainer>(RingBufferSize),
                 LatestWriteIndex = -1
             };
@@ -86,13 +87,13 @@ namespace DotsPersistency
             {
                 newData.RingBuffer.Add(newData.InitialSceneState.GetCopy());
             }
-            _allPersistedData[sceneSection] = newData;
+            _allPersistedData[identifier] = newData;
             return newData.InitialSceneState;
         }
         
-        public bool IsSceneSectionInitialized(SceneSection sceneSection)
+        public bool IsInitialized(Hash128 identifier)
         {
-            return _allPersistedData.ContainsKey(sceneSection);
+            return _allPersistedData.ContainsKey(identifier);
         }
         
         public void RegisterCustomSerializer(IPersistentDataSerializer serializer)
@@ -100,19 +101,19 @@ namespace DotsPersistency
             _serializer = serializer;
         }
         
-        public void SaveToDisk(SceneSection sceneSection)
+        public void SaveToDisk(Hash128 identifier)
         {
-            _serializer.WriteContainerData(GetReadContainerForCurrentIndex(sceneSection));
+            _serializer.WriteContainerData(GetReadContainerForCurrentIndex(identifier));
         }
 
-        public void ReadContainerDataFromDisk(SceneSection sceneSection)
+        public void ReadContainerDataFromDisk(Hash128 identifier)
         {
-            _serializer.ReadContainerData(GetWriteContainerForCurrentIndex(sceneSection));
+            _serializer.ReadContainerData(GetWriteContainerForCurrentIndex(identifier));
         }
 
-        public PersistentDataContainer GetLatestWrittenState(SceneSection sceneSection, out bool isInitial)
+        public PersistentDataContainer GetLatestWrittenState(Hash128 identifier, out bool isInitial)
         {
-            var data = _allPersistedData[sceneSection];
+            var data = _allPersistedData[identifier];
             if (data.LatestWriteIndex == -1)
             {
                 isInitial = true;
@@ -125,9 +126,9 @@ namespace DotsPersistency
             }
         }
         
-        public PersistentDataContainer GetInitialState(SceneSection sceneSection)
+        public PersistentDataContainer GetInitialState(Hash128 identifier)
         {
-            var data = _allPersistedData[sceneSection];
+            var data = _allPersistedData[identifier];
             return data.InitialSceneState;
         }
     }

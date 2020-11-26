@@ -2,10 +2,10 @@
 
 using System.Runtime.CompilerServices;
 using System;
-using DotsPersistency.Containers;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
 
 [assembly:InternalsVisibleTo("io.jonasdem.dotspersistency.hybrid")]
 
@@ -20,6 +20,7 @@ namespace DotsPersistency
         public int Offset; // Byte Offset in the Byte Array which contains all data for 1 SceneSection
         public int SizePerEntity;
         public ushort ArchetypeIndexInContainer; // Index specifically for any container for this SceneSection
+        public Hash128 PersistableTypeHandleCombinationHash;
 
         public struct TypeInfo
         {
@@ -33,39 +34,32 @@ namespace DotsPersistency
     
     // This component gets replaced by PersistencyArchetypeDataLayout on the first frame an entity is loaded
     [Serializable]
-    public struct PersistencyArchetype : ISharedComponentData
+    public struct PersistableTypeCombinationHash : ISharedComponentData
     {
-        // A unity bug makes me have to use this temporary workaround instead of just using FixedList as a field
-        // https://fogbugz.unity3d.com/default.asp?1250205_h3i38krgoh6ibpc9
-        // Contains indices into the type info list in PersistencySettings
-        public FixedList128<PersistableTypeHandle> PersistableTypeHandles  // can store 63
-        {
-            get
-            {
-                FixedList128<PersistableTypeHandle> retVal = new FixedList128<PersistableTypeHandle>();
-                for (int i = 0; i < _length; i++)
-                {
-                    retVal.Add(_array16[i]);
-                }
-                return retVal;
-            }
-            set
-            {
-                _length = (ushort)value.Length;
-                for (int i = 0; i < value.Length; i++)
-                {
-                    _array16[i] = value[i];
-                }
-            }
-        }
-
-        [SerializeField] private ushort _length;
-        [SerializeField] private FixedArray16<PersistableTypeHandle> _array16;
+        public Hash128 Value;
+    }
+    
+    [Serializable]
+    public struct PersistencyContainerTag : ISharedComponentData
+    {
+        public Hash128 DataIdentifier;
     }
 
     public struct PersistencyArchetypeIndexInContainer : IComponentData
     {
         public ushort Index;
+    }
+    
+    public struct PersistencyArchetype
+    {
+        public FixedList128<PersistableTypeHandle> PersistableTypeHandles;
+        public Hash128 PersistableTypeHandleCombinationHash;
+        public int Amount;
+    }
+    
+    public struct ScenePersistencyInfo : IComponentData
+    {
+        public BlobAssetReference<BlobArray<PersistencyArchetype>> PersistencyArchetypes;
     }
     
     // A persisting entity needs this component

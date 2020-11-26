@@ -46,18 +46,6 @@ public static class ExtensionMethods
         
         return blobAssetReference;
     }
-    
-    [Pure]
-    public static PersistencyArchetype ToPersistencyArchetype(this ref PersistencyArchetypeDataLayout persistencyArchetypeDataLayout)
-    {
-        FixedList128<PersistableTypeHandle> list = new FixedList128<PersistableTypeHandle>();
-        for (int i = 0; i < persistencyArchetypeDataLayout.PersistedTypeInfoArrayRef.Value.Length; i++)
-        {
-            list.Add(persistencyArchetypeDataLayout.PersistedTypeInfoArrayRef.Value[i].PersistableTypeHandle);
-        }
-
-        return new PersistencyArchetype { PersistableTypeHandles = list };
-    }
 
     [Conditional("DEBUG")]
     private static void ValidateType(TypeManager.TypeInfo typeInfo)

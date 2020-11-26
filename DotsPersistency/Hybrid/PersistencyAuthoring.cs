@@ -34,35 +34,8 @@ namespace DotsPersistency.Hybrid
             return retVal;
         }
 
-        public Hash128 GetHashOfTypeCombination()
-        {
-            ulong hash1 = 0;
-            ulong hash2 = 0;
-
-            for (int i = 0; i < FullTypeNamesToPersist.Count; i++)
-            {
-                unchecked
-                {
-                    if (i%2 == 0)
-                    {
-                        ulong hash = 17;
-                        hash = hash * 31 + hash1;
-                        hash = hash * 31 + (ulong)FullTypeNamesToPersist[i].GetHashCode();
-                        hash1 = hash;
-                    }
-                    else
-                    {
-                        ulong hash = 17;
-                        hash = hash * 31 + hash2;
-                        hash = hash * 31 + (ulong)FullTypeNamesToPersist[i].GetHashCode();
-                        hash2 = hash;
-                    }
-                }
-            }
-            return new UnityEngine.Hash128(hash1, hash2);
-        }
-        
-        public int CalculateArrayIndex()
+        [Obsolete]
+        private int CalculateArrayIndex()
         {
             Transform rootParent = transform;
             while (rootParent.parent)
