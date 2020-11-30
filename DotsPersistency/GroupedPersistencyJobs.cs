@@ -8,20 +8,19 @@ using Debug = UnityEngine.Debug;
 
 namespace DotsPersistency
 {
-    // A grouped persistency job does job dependencies correctly, but it can't provide all the safety checks you normally have.
-    // There's no way to specify atomic safety handles for jobs yourself. This happens automatically via reflection inside native code.
-    // This automatic process (obviously) doesn't pick up the atomic safety handles hidden inside ComponentTypeHandleArray & BufferTypeHandleArray their Malloc allocated memory.
-    // This means that if a job writes to a component we write to or read from, they would not be notified of errors in the case that they didn't feed in the correct job dependencies.
-    // Since users should be able to rely on these checks in editor, we only run grouped persistency jobs if ENABLE_UNITY_COLLECTIONS_CHECKS is not defined.
+    // This job uses nested native containers, the unity job safety system doesn't support that, so we only run these jobs in a build.
     [BurstCompile]
     public struct GroupedApplyJob : IJobEntityBatch
     {
-        [WriteOnly] public PersistentDataContainer DataContainer;
+        public PersistentDataContainer DataContainer;
         
         [ReadOnly] public EntityTypeHandle EntityTypeHandle;
         [ReadOnly] public ComponentTypeHandle<PersistenceState> PersistenceStateTypeHandle;
         [ReadOnly] public ComponentTypeHandle<PersistencyArchetypeIndexInContainer> PersistencyArchetypeIndexInContainerTypeHandle;
+        
+        [DeallocateOnJobCompletion]
         [ReadOnly] public ComponentTypeHandleArray DynamicComponentTypeHandles;
+        [DeallocateOnJobCompletion]
         [ReadOnly] public BufferTypeHandleArray DynamicBufferTypeHandles;
 
         [ReadOnly] public PersistencySettings.TypeIndexLookup TypeIndexLookup;
@@ -30,14 +29,13 @@ namespace DotsPersistency
 
         public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
-            // todo perf instead of grabbing these container every time, just grab em once here
-            // NativeArray<PersistenceState> persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateTypeHandle);
-            // NativeArray<Entity> entityArray = batchInChunk.GetNativeArray(EntityTypeHandle);
+            NativeArray<PersistenceState> persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateTypeHandle);
+            NativeArray<Entity> entityArray = batchInChunk.GetNativeArray(EntityTypeHandle);
             
             NativeArray<PersistencyArchetypeIndexInContainer> archetypeIndexInContainerArray = batchInChunk.GetNativeArray(PersistencyArchetypeIndexInContainerTypeHandle);
             ValidateArchetypeIndexInContainer(archetypeIndexInContainerArray);
             
-            PersistencyArchetypeDataLayout dataLayout = DataContainer.GetPersistenceArchetypeDataLayoutAtIndex(archetypeIndexInContainerArray[0].Index);
+            PersistencyArchetypeDataLayout dataLayout = DataContainer.GetDataLayoutAtIndex(archetypeIndexInContainerArray[0].Index);
             ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
             var dataForArchetype = DataContainer.GetSubArrayAtIndex(dataLayout.ArchetypeIndexInContainer);
 
@@ -56,15 +54,12 @@ namespace DotsPersistency
                 {
                     bool found = DynamicBufferTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicBufferTypeHandle typeHandle);
                     Debug.Assert(found);
-                    Debug.Assert(batchInChunk.Has(typeHandle)); 
-                    new CopyByteArrayToBufferElements()
+                    // Debug.Assert(batchInChunk.Has(typeHandle)); 
+                    if (batchInChunk.Has(typeHandle))
                     {
-                        BufferTypeHandle = typeHandle,
-                        ElementSize = typeInfo.ElementSize,
-                        MaxElements = typeInfo.MaxElements,
-                        PersistenceStateType = PersistenceStateTypeHandle,
-                        InputData = inputData
-                    }.Execute(batchInChunk, batchIndex);
+                        var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(typeHandle);
+                        CopyByteArrayToBufferElements.Execute(inputData, typeInfo.ElementSize, typeInfo.MaxElements, untypedBufferAccessor, persistenceStateArray);
+                    }
                 }
                 else // if ComponentData
                 {
@@ -73,46 +68,24 @@ namespace DotsPersistency
                     
                     if (batchInChunk.Has(typeHandle))
                     {
-                        // minor optimization: these jobs grab some of the same chunk data, so it's searching for it 2 times.
                         if (typeInfo.ElementSize > 0)
                         {
-                            new CopyByteArrayToComponentData()
-                            {
-                                ComponentTypeHandle = typeHandle,
-                                TypeSize = typeInfo.ElementSize,
-                                PersistenceStateType = PersistenceStateTypeHandle,
-                                InputData = inputData
-                            }.Execute(batchInChunk, batchIndex);
+                            var byteArray = batchInChunk.GetComponentDataAsByteArray(typeHandle);
+                            CopyByteArrayToComponentData.Execute(inputData, typeInfo.ElementSize, byteArray, persistenceStateArray);
                         }
 
-                        new RemoveComponent()
-                        {
-                            TypeToRemove = runtimeType,
-                            TypeSize = typeInfo.ElementSize,
-                            PersistenceStateType = PersistenceStateTypeHandle,
-                            EntityType = EntityTypeHandle,
-                            InputData = inputData,
-                            Ecb = Ecb
-                        }.Execute(batchInChunk, batchIndex);
+                        RemoveComponent.Execute(inputData, runtimeType, typeInfo.ElementSize, entityArray, persistenceStateArray, Ecb, batchIndex);
                     }
                     else
                     {
-                        new AddMissingComponent()
-                        {
-                            ComponentType = runtimeType,
-                            TypeSize = typeInfo.ElementSize,
-                            PersistenceStateType = PersistenceStateTypeHandle,
-                            EntityType = EntityTypeHandle,
-                            InputData = inputData,
-                            Ecb = Ecb
-                        }.Execute(batchInChunk, batchIndex);
+                        AddMissingComponent.Execute(inputData, runtimeType,  typeInfo.ElementSize, entityArray, persistenceStateArray, Ecb, batchIndex);
                     }
                 }
             }
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        private void ValidateArchetypeIndexInContainer(NativeArray<PersistencyArchetypeIndexInContainer> dataForOneChunk)
+        internal static void ValidateArchetypeIndexInContainer(NativeArray<PersistencyArchetypeIndexInContainer> dataForOneChunk)
         {
             if (dataForOneChunk.Length == 0)
             {
@@ -131,21 +104,74 @@ namespace DotsPersistency
         }
     }
 
-    // A grouped persistency job does job dependencies correctly, but it can't provide all the safety checks you normally have.
-    // There's no way to specify atomic safety handles for jobs yourself. This happens automatically via reflection inside native code.
-    // This automatic process (obviously) doesn't pick up the atomic safety handles hidden inside ComponentTypeHandleArray & BufferTypeHandleArray their Malloc allocated memory.
-    // This means that if a job writes to a component we write to or read from, they would not be notified of errors in the case that they didn't feed in the correct job dependencies.
-    // Since users should be able to rely on these checks in editor, we only run grouped persistency jobs if ENABLE_UNITY_COLLECTIONS_CHECKS is not defined.
+    // This job uses nested native containers, the unity job safety system doesn't support that, so we only run these jobs in a build.
     [BurstCompile]
     public struct GroupedPersistJob : IJobEntityBatch
     {
-        [ReadOnly] public NativeArray<PersistencyArchetypeDataLayout> DataLayouts;
+        public PersistentDataContainer DataContainer;
+        
         [ReadOnly] public ComponentTypeHandle<PersistenceState> PersistenceStateTypeHandle;
+        [ReadOnly] public ComponentTypeHandle<PersistencyArchetypeIndexInContainer> PersistencyArchetypeIndexInContainerTypeHandle;
+        
+        [DeallocateOnJobCompletion]
         [ReadOnly] public ComponentTypeHandleArray DynamicComponentTypeHandles;
+        [DeallocateOnJobCompletion]
         [ReadOnly] public BufferTypeHandleArray DynamicBufferTypeHandles;
+
+        [ReadOnly] public PersistencySettings.TypeIndexLookup TypeIndexLookup;
 
         public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
+            NativeArray<PersistenceState> persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateTypeHandle);
+            
+            NativeArray<PersistencyArchetypeIndexInContainer> archetypeIndexInContainerArray = batchInChunk.GetNativeArray(PersistencyArchetypeIndexInContainerTypeHandle);
+            GroupedApplyJob.ValidateArchetypeIndexInContainer(archetypeIndexInContainerArray);
+            
+            PersistencyArchetypeDataLayout dataLayout = DataContainer.GetDataLayoutAtIndex(archetypeIndexInContainerArray[0].Index);
+            ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
+            var dataForArchetype = DataContainer.GetSubArrayAtIndex(dataLayout.ArchetypeIndexInContainer);
+            
+            for (int typeInfoIndex = 0; typeInfoIndex < typeInfoArray.Length; typeInfoIndex++)
+            {
+                // type info
+                PersistencyArchetypeDataLayout.TypeInfo typeInfo = typeInfoArray[typeInfoIndex];
+                ComponentType runtimeType = ComponentType.ReadOnly(TypeIndexLookup.GetTypeIndex(typeInfo.PersistableTypeHandle));
+                int stride = typeInfo.ElementSize * typeInfo.MaxElements + PersistenceMetaData.SizeOfStruct;
+                int byteSize = dataLayout.Amount * stride;
+
+                // Grab containers
+                var outputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
+                
+                if (typeInfo.IsBuffer)
+                {
+                    bool found = DynamicBufferTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicBufferTypeHandle typeHandle);
+                    Debug.Assert(found);
+                    // Debug.Assert(batchInChunk.Has(typeHandle)); 
+                    if (batchInChunk.Has(typeHandle))
+                    {
+                        var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(typeHandle);
+                        CopyBufferElementsToByteArray.Execute(outputData, typeInfo.ElementSize, typeInfo.MaxElements, untypedBufferAccessor, persistenceStateArray);
+                    }
+                }
+                else
+                {
+                    bool found = DynamicComponentTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicComponentTypeHandle typeHandle);
+                    Debug.Assert(found);
+
+                    if (batchInChunk.Has(typeHandle))
+                    {
+                        if (typeInfo.ElementSize > 0)
+                        {
+                            var byteArray = batchInChunk.GetComponentDataAsByteArray(typeHandle);
+                            CopyComponentDataToByteArray.Execute(outputData, typeInfo.ElementSize, byteArray, persistenceStateArray);
+                        }
+                        else
+                        {
+                            UpdateMetaDataForTagComponent.Execute(outputData, persistenceStateArray);
+                        }
+                    }
+                }
+            }
         }
     }
 }

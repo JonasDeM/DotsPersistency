@@ -18,14 +18,14 @@ public static class ExtensionMethods
         {
             ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> blobArray = ref blobBuilder.ConstructRoot<BlobArray<PersistencyArchetypeDataLayout.TypeInfo>>();
 
-            var persistableTypeHandles = persistencyArchetype.PersistableTypeHandles;
-            var blobBuilderArray = blobBuilder.Allocate(ref blobArray, persistableTypeHandles.Length);
+            ref BlobArray<PersistableTypeHandle> persistableTypeHandles = ref persistencyArchetype.PersistableTypeHandles;
+            BlobBuilderArray<PersistencyArchetypeDataLayout.TypeInfo> blobBuilderArray = blobBuilder.Allocate(ref blobArray, persistableTypeHandles.Length);
 
             for (int i = 0; i < blobBuilderArray.Length; i++)
             {
-                var persistableTypeHandle = persistableTypeHandles[i];
-                var typeInfo = TypeManager.GetTypeInfo(persistencySettings.GetTypeIndex(persistableTypeHandle));
-                var maxElements = persistencySettings.GetMaxElements(persistableTypeHandle);
+                PersistableTypeHandle persistableTypeHandle = persistableTypeHandles[i];
+                TypeManager.TypeInfo typeInfo = TypeManager.GetTypeInfo(persistencySettings.GetTypeIndex(persistableTypeHandle));
+                int maxElements = persistencySettings.GetMaxElements(persistableTypeHandle);
                 ValidateType(typeInfo);
                 
                 blobBuilderArray[i] = new PersistencyArchetypeDataLayout.TypeInfo()

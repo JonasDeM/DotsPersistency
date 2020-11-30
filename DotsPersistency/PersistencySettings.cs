@@ -32,6 +32,9 @@ namespace DotsPersistency
         internal bool ForceUseNonGroupedJobsInBuild = false;
         [SerializeField]
         internal bool ForceUseGroupedJobsInEditor = false;
+        [SerializeField]
+        internal bool VerboseConversionLog = false;
+        
         private TypeIndexLookup _typeIndexLookup;
         private bool _initialized;
         
@@ -56,6 +59,12 @@ namespace DotsPersistency
         {
             Debug.Assert(typeHandle.IsValid, "Expected a valid type handle");
             return _typeIndexLookup.GetTypeIndex(typeHandle);
+        }
+        
+        public bool IsBufferType(PersistableTypeHandle typeHandle)
+        {
+            Debug.Assert(typeHandle.IsValid, "Expected a valid type handle");
+            return _allPersistableTypeInfos[typeHandle.Handle - 1].IsBuffer;
         }
         
         public int GetMaxElements(PersistableTypeHandle typeHandle)
@@ -85,6 +94,8 @@ namespace DotsPersistency
         {
 #if UNITY_EDITOR
             return ForceUseGroupedJobsInEditor;
+#elif ENABLE_UNITY_COLLECTIONS_CHECKS
+            return false;
 #else
             return !ForceUseNonGroupedJobsInBuild;
 #endif
@@ -93,34 +104,6 @@ namespace DotsPersistency
         public TypeIndexLookup GetTypeIndexLookup()
         {
             return _typeIndexLookup;
-        }
-        
-        public Unity.Entities.Hash128 GetPersistableTypeHandleCombinationHash(FixedList128<PersistableTypeHandle> persistableTypeHandles)
-        {
-            ulong hash1 = 0;
-            ulong hash2 = 0;
-
-            for (int i = 0; i < persistableTypeHandles.Length; i++)
-            {
-                unchecked
-                {
-                    if (i%2 == 0)
-                    {
-                        ulong hash = 17;
-                        hash = hash * 31 + hash1;
-                        hash = hash * 31 + (ulong)persistableTypeHandles[i].Handle.GetHashCode();
-                        hash1 = hash;
-                    }
-                    else
-                    {
-                        ulong hash = 17;
-                        hash = hash * 31 + hash2;
-                        hash = hash * 31 + (ulong)persistableTypeHandles[i].Handle.GetHashCode();
-                        hash2 = hash;
-                    }
-                }
-            }
-            return new UnityEngine.Hash128(hash1, hash2);
         }
 
         public static bool IsSupported(TypeManager.TypeInfo info, out string notSupportedReason)

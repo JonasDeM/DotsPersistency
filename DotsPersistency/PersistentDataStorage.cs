@@ -12,12 +12,27 @@ namespace DotsPersistency
 {
     public class PersistentDataStorage
     {
-        struct ArchetypesWithStates
+        private struct ArchetypesWithStates : IDisposable
         {
             public int LatestWriteIndex;
             public NativeArray<PersistencyArchetypeDataLayout> Archetypes;
             public PersistentDataContainer InitialSceneState;
             public List<PersistentDataContainer> RingBuffer;
+            
+            public NativeArray<PersistableTypeHandle> AllUniqueTypeHandles;
+            public int UniqueBufferTypeHandleCount;
+            public int UniqueComponentDataTypeHandleCount => AllUniqueTypeHandles.Length - UniqueBufferTypeHandleCount;
+
+            public void Dispose()
+            {
+                Archetypes.Dispose();
+                AllUniqueTypeHandles.Dispose();
+                InitialSceneState.Dispose();
+                foreach (var persistentDataContainer in RingBuffer)
+                {
+                    persistentDataContainer.Dispose();
+                }
+            }
         }
         
         private int _ringBufferIndex;
@@ -37,12 +52,7 @@ namespace DotsPersistency
         {
             foreach (ArchetypesWithStates value in _allPersistedData.Values)
             {
-                value.Archetypes.Dispose();
-                value.InitialSceneState.Dispose();
-                foreach (var persistentDataContainer in value.RingBuffer)
-                {
-                    persistentDataContainer.Dispose();
-                }
+                value.Dispose();
             }
         }
 
@@ -73,19 +83,21 @@ namespace DotsPersistency
         }
 
         // returns initial state container, so it would be used to persist the initial state
-        public PersistentDataContainer InitializeScene(Hash128 identifier, NativeArray<PersistencyArchetypeDataLayout> archetypes)
+        public PersistentDataContainer InitializeScene(Hash128 identifier, NativeArray<PersistencyArchetypeDataLayout> archetypes, NativeArray<PersistableTypeHandle> allUniqueTypeHandles, int uniqueBufferTypeHandleCount)
         {
             Debug.Assert(!_allPersistedData.ContainsKey(identifier));
             var newData = new ArchetypesWithStates()
             {
                 Archetypes = archetypes,
-                InitialSceneState = new PersistentDataContainer(identifier, archetypes, Allocator.Persistent),
+                AllUniqueTypeHandles = allUniqueTypeHandles,
+                UniqueBufferTypeHandleCount = uniqueBufferTypeHandleCount,
+                InitialSceneState = new PersistentDataContainer(identifier, archetypes, allUniqueTypeHandles, uniqueBufferTypeHandleCount, Allocator.Persistent),
                 RingBuffer = new List<PersistentDataContainer>(RingBufferSize),
                 LatestWriteIndex = -1
             };
             for (int i = 0; i < RingBufferSize; i++)
             {
-                newData.RingBuffer.Add(newData.InitialSceneState.GetCopy());
+                newData.RingBuffer.Add(newData.InitialSceneState.GetCopy(Allocator.Persistent));
             }
             _allPersistedData[identifier] = newData;
             return newData.InitialSceneState;

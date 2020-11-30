@@ -38,6 +38,7 @@ namespace DotsPersistency.Containers
     }
     
     [NativeContainer]
+    [NativeContainerSupportsDeallocateOnJobCompletion]
     public struct ComponentTypeHandleArray : IDisposable
     {
         [NativeDisableUnsafePtrRestriction] private unsafe void* m_Buffer;
@@ -75,11 +76,11 @@ namespace DotsPersistency.Containers
     
         public unsafe void Dispose()
         {
-            Debug.Assert(!JobsUtility.IsExecutingJob);
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             if (!UnsafeUtility.IsValidAllocator(m_AllocatorLabel))
                 throw new InvalidOperationException("The ComponentTypeHandleArray can not be disposed because it was not allocated with a valid allocator.");
 #endif
+            DisposeSentinel.Dispose(ref this.m_Safety, ref this.m_DisposeSentinel);
             UnsafeUtility.Free(m_Buffer, m_AllocatorLabel);
             m_Buffer = (void*) null;
             m_Length = 0;
@@ -114,7 +115,6 @@ namespace DotsPersistency.Containers
             set
             {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                Debug.Assert(!JobsUtility.IsExecutingJob);
                 if (index < 0 || index >= m_Length)
                     throw new IndexOutOfRangeException();
 #endif
@@ -146,6 +146,7 @@ namespace DotsPersistency.Containers
 
     
     [NativeContainer]
+    [NativeContainerSupportsDeallocateOnJobCompletion]
     public struct BufferTypeHandleArray : IDisposable
     {
         [NativeDisableUnsafePtrRestriction] private unsafe void* m_Buffer;
@@ -183,11 +184,11 @@ namespace DotsPersistency.Containers
     
         public unsafe void Dispose()
         {
-            Debug.Assert(!JobsUtility.IsExecutingJob);
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             if (!UnsafeUtility.IsValidAllocator(m_AllocatorLabel))
                 throw new InvalidOperationException("The BufferTypeHandleArray can not be disposed because it was not allocated with a valid allocator.");
 #endif
+            DisposeSentinel.Dispose(ref this.m_Safety, ref this.m_DisposeSentinel);
             UnsafeUtility.Free(m_Buffer, m_AllocatorLabel);
             m_Buffer = (void*) null;
             m_Length = 0;
@@ -222,7 +223,6 @@ namespace DotsPersistency.Containers
             set
             {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                Debug.Assert(!JobsUtility.IsExecutingJob);
                 if (index < 0 || index >= m_Length)
                     throw new IndexOutOfRangeException();
 #endif

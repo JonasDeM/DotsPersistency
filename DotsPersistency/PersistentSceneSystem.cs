@@ -1,4 +1,5 @@
 ﻿using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Scenes;
 using Debug = UnityEngine.Debug;
@@ -40,7 +41,7 @@ namespace DotsPersistency
                 None = new []{ ComponentType.ReadOnly<PersistencyArchetypeDataLayout>() },
                 Options = EntityQueryOptions.IncludeDisabled
             });
-            _scenePersistencyInfoQuery = GetEntityQuery(ComponentType.ReadOnly<ScenePersistencyInfo>(), ComponentType.ReadOnly<PersistencyContainerTag>());
+            _scenePersistencyInfoQuery = GetEntityQuery(ComponentType.ReadOnly<ScenePersistencyInfoRef>(), ComponentType.ReadOnly<PersistencyContainerTag>());
             _sceneSectionLoadedCheckQuery = GetEntityQuery(ComponentType.ReadOnly<SceneSection>());
             RequireForUpdate(GetEntityQuery(ComponentType.ReadOnly<RequestPersistentSceneSectionLoaded>(), ComponentType.ReadOnly<SceneSectionData>(), ComponentType.Exclude<PersistentSceneSectionLoadComplete>()));
         }
@@ -123,7 +124,7 @@ namespace DotsPersistency
             sceneSectionsToInit = completeSceneSections;
         }
 
-        private void InitSceneSection(SceneSection sceneSection, EntityCommandBuffer ecb)
+        private unsafe void InitSceneSection(SceneSection sceneSection, EntityCommandBuffer ecb)
         {
             Hash128 containerIdentifier = sceneSection.SceneGUID;
             PersistencyContainerTag containerTag = new PersistencyContainerTag() {DataIdentifier = containerIdentifier};
@@ -131,9 +132,9 @@ namespace DotsPersistency
             if (PersistentDataStorage.IsInitialized(containerIdentifier))
             {
                 PersistentDataContainer latestState = PersistentDataStorage.GetLatestWrittenState(containerIdentifier, out bool isInitial);
-                for (int i = 0; i < latestState.Count; i++)
+                for (int i = 0; i < latestState.DataLayoutCount; i++)
                 {
-                    PersistencyArchetypeDataLayout dataLayout = latestState.GetPersistenceArchetypeDataLayoutAtIndex(i);
+                    PersistencyArchetypeDataLayout dataLayout = latestState.GetDataLayoutAtIndex(i);
                     _initEntitiesQuery.SetSharedComponentFilter(new PersistableTypeCombinationHash {Value = dataLayout.PersistableTypeHandleCombinationHash}, containerTag);
                     
                     ecb.AddSharedComponent(_initEntitiesQuery, dataLayout);
@@ -144,14 +145,14 @@ namespace DotsPersistency
             else
             {
                 _scenePersistencyInfoQuery.SetSharedComponentFilter(containerTag);
-                var scenePersistencyInfo = _scenePersistencyInfoQuery.GetSingleton<ScenePersistencyInfo>();
-                ref BlobArray<PersistencyArchetype> persistencyArchetypes = ref scenePersistencyInfo.PersistencyArchetypes.Value; 
+                var scenePersistencyInfoRef = _scenePersistencyInfoQuery.GetSingleton<ScenePersistencyInfoRef>();
+                ref ScenePersistencyInfo sceneInfo = ref scenePersistencyInfoRef.InfoRef.Value; 
                 
                 int offset = 0;
-                var dataLayouts = new NativeArray<PersistencyArchetypeDataLayout>(persistencyArchetypes.Length, Allocator.Persistent);
-                for (var i = 0; i < persistencyArchetypes.Length; i++)
+                var dataLayouts = new NativeArray<PersistencyArchetypeDataLayout>(sceneInfo.PersistencyArchetypes.Length, Allocator.Persistent);
+                for (var i = 0; i < sceneInfo.PersistencyArchetypes.Length; i++)
                 {
-                    var persistencyArchetype = persistencyArchetypes[i];
+                    ref PersistencyArchetype persistencyArchetype = ref sceneInfo.PersistencyArchetypes[i];
 
                     var hashFilter = new PersistableTypeCombinationHash
                     {
@@ -162,21 +163,35 @@ namespace DotsPersistency
                     
                     var dataLayout = new PersistencyArchetypeDataLayout()
                     {
-                        Amount = persistencyArchetype.Amount,
+                        Amount = persistencyArchetype.AmountEntities,
                         ArchetypeIndexInContainer = (ushort)i,
-                        PersistedTypeInfoArrayRef = persistencyArchetype.BuildTypeInfoBlobAsset(PersistencySettings, persistencyArchetype.Amount, out int sizePerEntity),
+                        PersistedTypeInfoArrayRef = persistencyArchetype.BuildTypeInfoBlobAsset(PersistencySettings, persistencyArchetype.AmountEntities, out int sizePerEntity),
                         SizePerEntity = sizePerEntity,
                         Offset = offset,
                         PersistableTypeHandleCombinationHash = hashFilter.Value
                     };
-                    offset += persistencyArchetype.Amount * sizePerEntity;
+                    offset += persistencyArchetype.AmountEntities * sizePerEntity;
 
                     dataLayouts[i] = dataLayout;
                     ecb.AddSharedComponent(_initEntitiesQuery, dataLayout);
                 }
 
-                // this function takes ownership over the dataLayouts array
-                var initialStateContainer = PersistentDataStorage.InitializeScene(containerIdentifier, dataLayouts);
+                // This also implicitly calculates the amount of component data types
+                int amountUniqueBufferTypes = 0;
+                for (int i = 0; i < sceneInfo.AllUniqueTypeHandles.Length; i++)
+                {
+                    if (PersistencySettings.IsBufferType(sceneInfo.AllUniqueTypeHandles[i]))
+                    {
+                        amountUniqueBufferTypes += 1;
+                    }
+                }
+
+                // BlobData is disposed if the owning entity is destroyed, we need this data even if the scene is unloaded
+                NativeArray<PersistableTypeHandle> allUniqueTypeHandles = new NativeArray<PersistableTypeHandle>(sceneInfo.AllUniqueTypeHandles.Length, Allocator.Persistent);
+                UnsafeUtility.MemCpy(allUniqueTypeHandles.GetUnsafePtr(), sceneInfo.AllUniqueTypeHandles.GetUnsafePtr(), allUniqueTypeHandles.Length * sizeof(PersistableTypeHandle));
+                
+                // this function takes ownership over the dataLayouts array & allUniqueTypeHandles array
+                PersistentDataContainer initialStateContainer = PersistentDataStorage.InitializeScene(containerIdentifier, dataLayouts, allUniqueTypeHandles, amountUniqueBufferTypes);
                 _beginFrameSystem.RequestInitialStatePersist(initialStateContainer);
             }
         }

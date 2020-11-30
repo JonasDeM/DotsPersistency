@@ -16,31 +16,33 @@ namespace DotsPersistency.Hybrid
     {
         public List<string> FullTypeNamesToPersist = new List<string>();
 
-        internal FixedList128<PersistableTypeHandle> GetPersistableTypeHandles(PersistencySettings persistencySettings)
+        
+        internal void GetConversionInfo(PersistencySettings persistencySettings, List<PersistableTypeHandle> listToFill, out int indexInScene, out Hash128 typeHandleCombinationHash)
         {
-            var retVal = new FixedList128<PersistableTypeHandle>();
-            Debug.Assert(FullTypeNamesToPersist.Count <= retVal.Capacity, $"More than {retVal.Capacity} persisted ComponentData types is not supported");
+            Debug.Assert(listToFill.Count == 0);
+            
             foreach (var fullTypeName in FullTypeNamesToPersist)
             {
                 if (persistencySettings.GetPersistableTypeHandleFromFullTypeName(fullTypeName, out PersistableTypeHandle typeHandle))
                 {
-                    retVal.Add(typeHandle); 
+                    listToFill.Add(typeHandle); 
                 }
                 else if (!string.IsNullOrEmpty(fullTypeName))
                 {
                     Debug.LogWarning($"Ignoring non-persistable type {fullTypeName} (Did it get removed from PersistencySettings?)");
                 }
             }
-            return retVal;
+
+            indexInScene = CalculateArrayIndex();
+            typeHandleCombinationHash = GetHash(listToFill);
         }
 
         // The only reason for this is deterministic conversion
-        internal int CalculateArrayIndex(PersistencySettings persistencySettings)
+        internal int CalculateArrayIndex()
         {
             Transform rootParent = transform;
-            Hash128 hash = persistencySettings.GetPersistableTypeHandleCombinationHash(GetPersistableTypeHandles(persistencySettings));
             
-            while (rootParent.parent)
+            while (rootParent.parent != null)
             {
                 rootParent = rootParent.parent;
             }
@@ -52,19 +54,47 @@ namespace DotsPersistency.Hybrid
                     break;
                 var compsInChildren = rootGameObject.GetComponentsInChildren<PersistencyAuthoring>();
                 
-                arrayIndex += compsInChildren.Count(comp => hash.Equals(persistencySettings.GetPersistableTypeHandleCombinationHash(comp.GetPersistableTypeHandles(persistencySettings))));
+                arrayIndex += compsInChildren.Count(comp => FullTypeNamesToPersist.SequenceEqual(comp.FullTypeNamesToPersist));
             }
             foreach (PersistencyAuthoring child in rootParent.GetComponentsInChildren<PersistencyAuthoring>())
             {
                 if (child == this)
                     break;
 
-                if (hash.Equals(persistencySettings.GetPersistableTypeHandleCombinationHash(child.GetPersistableTypeHandles(persistencySettings))))
+                if (FullTypeNamesToPersist.SequenceEqual(child.FullTypeNamesToPersist))
                 {
                     arrayIndex += 1;
                 }
             }
             return arrayIndex;
+        }
+        
+        internal static Hash128 GetHash(List<PersistableTypeHandle> persistableTypeHandles)
+        {
+            ulong hash1 = 0;
+            ulong hash2 = 0;
+
+            for (int i = 0; i < persistableTypeHandles.Count; i++)
+            {
+                unchecked
+                {
+                    if (i%2 == 0)
+                    {
+                        ulong hash = 17;
+                        hash = hash * 31 + hash1;
+                        hash = hash * 31 + (ulong)persistableTypeHandles[i].Handle.GetHashCode();
+                        hash1 = hash;
+                    }
+                    else
+                    {
+                        ulong hash = 17;
+                        hash = hash * 31 + hash2;
+                        hash = hash * 31 + (ulong)persistableTypeHandles[i].Handle.GetHashCode();
+                        hash2 = hash;
+                    }
+                }
+            }
+            return new UnityEngine.Hash128(hash1, hash2);
         }
     }
 }

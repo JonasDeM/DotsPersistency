@@ -1,10 +1,14 @@
 ﻿// Author: Jonas De Maeseneer
 
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEditor;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 using Hash128 = Unity.Entities.Hash128;
 // ReSharper disable AccessToDisposedClosure
 
@@ -12,7 +16,7 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency.Hybrid
 {
-    [ConverterVersion("Jonas", 15)]
+    [ConverterVersion("Jonas", 18)]
     [UpdateInGroup(typeof(GameObjectAfterConversionGroup))]
     public class PersistencyConversionSystem : GameObjectConversionSystem
     {
@@ -24,9 +28,13 @@ namespace DotsPersistency.Hybrid
                 return;
             }
             
-            Hash128 sceneGUID = ForkSettings(1).SceneGUID;
-            NativeList<PersistencyArchetype> allPersistencyArchetypes = new NativeList<PersistencyArchetype>(16, Allocator.Temp);
-            NativeHashMap<Hash128, ushort> hashToArchetypeIndexInContainer = new NativeHashMap<Hash128, ushort>(16, Allocator.Temp);
+            Hash128 sceneGUID = default;
+            List<BlobCreationInfo> blobCreationInfo = new List<BlobCreationInfo>(16);
+            HashSet<PersistableTypeHandle> allUniqueTypeHandles = new HashSet<PersistableTypeHandle>();
+            Dictionary<Hash128, ushort> hashToArchetypeIndexInContainer = new Dictionary<Hash128, ushort>(16);
+            
+            // to avoid tons of GC allocations
+            List<PersistableTypeHandle> typeHandleList = new List<PersistableTypeHandle>(16);
 
             Entities.ForEach((PersistencyAuthoring persistencyAuthoring) =>
             {
@@ -38,22 +46,25 @@ namespace DotsPersistency.Hybrid
                 Entity e = GetPrimaryEntity(persistencyAuthoring);
                 
                 // Gather info for own components & persistencySceneInfo entity
-                var persistableTypeHandles = persistencyAuthoring.GetPersistableTypeHandles(settings);
-                Hash128 typeCombinationHash = settings.GetPersistableTypeHandleCombinationHash(persistableTypeHandles);
+                typeHandleList.Clear();
+                persistencyAuthoring.GetConversionInfo(settings, typeHandleList, out int indexInScene, out Hash128 typeCombinationHash);
                 if (!hashToArchetypeIndexInContainer.ContainsKey(typeCombinationHash))
                 {
-                    Debug.Assert(allPersistencyArchetypes.Length < ushort.MaxValue);
-                    hashToArchetypeIndexInContainer.Add(typeCombinationHash, (ushort)allPersistencyArchetypes.Length);
-                    allPersistencyArchetypes.Add(new PersistencyArchetype()
+                    Debug.Assert(blobCreationInfo.Count < ushort.MaxValue);
+                    hashToArchetypeIndexInContainer.Add(typeCombinationHash, (ushort)blobCreationInfo.Count);
+                    blobCreationInfo.Add(new BlobCreationInfo()
                     {
-                        Amount = 0,
-                        PersistableTypeHandles = persistableTypeHandles,
+                        AmountEntities = 0,
+                        PersistableTypeHandles = new List<PersistableTypeHandle>(typeHandleList),
                         PersistableTypeHandleCombinationHash = typeCombinationHash
                     });
+                    foreach (var persistableTypeHandle in typeHandleList)
+                    {
+                        allUniqueTypeHandles.Add(persistableTypeHandle);
+                    }
                 }
                 
                 ushort archetypeIndexInContainer = hashToArchetypeIndexInContainer[typeCombinationHash];
-                PersistencyArchetype persistencyArchetype = allPersistencyArchetypes[archetypeIndexInContainer];
                 
                 // Add components that an entity needs to be persistable: What to store & Where to store it
                 DstEntityManager.AddComponentData(e, new PersistencyArchetypeIndexInContainer()
@@ -62,7 +73,7 @@ namespace DotsPersistency.Hybrid
                 });
                 DstEntityManager.AddComponentData(e, new PersistenceState()
                 {
-                    ArrayIndex = persistencyAuthoring.CalculateArrayIndex(settings)
+                    ArrayIndex = indexInScene
                 });
                 DstEntityManager.AddSharedComponentData(e, new PersistableTypeCombinationHash()
                 {
@@ -73,40 +84,60 @@ namespace DotsPersistency.Hybrid
                     DataIdentifier = sceneGUID
                 });
 
-                persistencyArchetype.Amount += 1;
-                allPersistencyArchetypes[archetypeIndexInContainer] = persistencyArchetype;
+                blobCreationInfo[archetypeIndexInContainer].AmountEntities += 1;
             });
-
+            
             if (sceneGUID == default) // there was nothing converted
             {
                 return;
             }
+            
+            List<PersistableTypeHandle> allUniqueTypeHandlesSorted = allUniqueTypeHandles.ToList();
+            allUniqueTypeHandlesSorted.Sort((left, right) => left.Handle.CompareTo(right.Handle));
 
-            // Create the entity that contains all the info PersistentSceneSystem needs for initializing a loaded scene
+            // Create the entity that contains all the info the PersistentSceneSystem needs for initializing a loaded scene
             Entity scenePersistencyInfoEntity = GetPrimaryEntity(settings);
-            DstEntityManager.SetName(scenePersistencyInfoEntity, nameof(ScenePersistencyInfo));
-            ScenePersistencyInfo scenePersistencyInfo = new ScenePersistencyInfo();
+            DstEntityManager.SetName(scenePersistencyInfoEntity, nameof(ScenePersistencyInfoRef));
+            
+            ScenePersistencyInfoRef scenePersistencyInfoRef = new ScenePersistencyInfoRef();
             using (BlobBuilder blobBuilder = new BlobBuilder(Allocator.Temp))
             {
-                ref BlobArray<PersistencyArchetype> blobArray = ref blobBuilder.ConstructRoot<BlobArray<PersistencyArchetype>>();
+                ref ScenePersistencyInfo scenePersistencyInfo = ref blobBuilder.ConstructRoot<ScenePersistencyInfo>();
 
-                var blobBuilderArray = blobBuilder.Allocate(ref blobArray, allPersistencyArchetypes.Length);
-
-                for (int i = 0; i < blobBuilderArray.Length; i++)
+                BlobBuilderArray<PersistableTypeHandle> blobBuilderArray1 = blobBuilder.Allocate(ref scenePersistencyInfo.AllUniqueTypeHandles, allUniqueTypeHandlesSorted.Count);
+                for (int i = 0; i < blobBuilderArray1.Length; i++)
                 {
-                    blobBuilderArray[i] = allPersistencyArchetypes[i];
+                    blobBuilderArray1[i] = allUniqueTypeHandlesSorted[i];
+                }
+                
+                BlobBuilderArray<PersistencyArchetype> blobBuilderArray2 = blobBuilder.Allocate(ref scenePersistencyInfo.PersistencyArchetypes, blobCreationInfo.Count);
+                for (int i = 0; i < blobCreationInfo.Count; i++)
+                {
+                    BlobCreationInfo info = blobCreationInfo[i];
+                    ref PersistencyArchetype persistencyArchetype = ref blobBuilderArray2[i];
+                    persistencyArchetype.AmountEntities = info.AmountEntities;
+                    persistencyArchetype.PersistableTypeHandleCombinationHash = info.PersistableTypeHandleCombinationHash;
+                    BlobBuilderArray<PersistableTypeHandle> blobBuilderArray3 = blobBuilder.Allocate(ref persistencyArchetype.PersistableTypeHandles, info.PersistableTypeHandles.Count);
+
+                    for (int j = 0; j < info.PersistableTypeHandles.Count; j++)
+                    {
+                        blobBuilderArray3[j] = info.PersistableTypeHandles[j];
+                    }
                 }
 
-                scenePersistencyInfo.PersistencyArchetypes = blobBuilder.CreateBlobAssetReference<BlobArray<PersistencyArchetype>>(Allocator.Persistent);
+                scenePersistencyInfoRef.InfoRef = blobBuilder.CreateBlobAssetReference<ScenePersistencyInfo>(Allocator.Persistent);
             }
-            DstEntityManager.AddComponentData(scenePersistencyInfoEntity, scenePersistencyInfo);
+            
+            DstEntityManager.AddComponentData(scenePersistencyInfoEntity, scenePersistencyInfoRef);
             DstEntityManager.AddSharedComponentData(scenePersistencyInfoEntity, new PersistencyContainerTag()
             {
                 DataIdentifier = sceneGUID
             });
-            
-            allPersistencyArchetypes.Dispose();
-            hashToArchetypeIndexInContainer.Dispose();
+
+            if (settings.VerboseConversionLog)
+            {
+                VerboseLog(settings, scenePersistencyInfoRef);
+            }
         }
 
         private static Hash128 GetSceneGUID(GameObject gameObject)
@@ -116,6 +147,34 @@ namespace DotsPersistency.Hybrid
 #else
             throw new NotSupportedException("Runtime conversion is not supported!");
 #endif
+        }
+        
+        private class BlobCreationInfo
+        {
+            public List<PersistableTypeHandle> PersistableTypeHandles;
+            public Hash128 PersistableTypeHandleCombinationHash;
+            public int AmountEntities;
+        }
+
+        [Conditional("UNITY_EDITOR")]
+        private static void VerboseLog(PersistencySettings settings, ScenePersistencyInfoRef scenePersistencyInfoRef)
+        {
+            ref ScenePersistencyInfo a = ref scenePersistencyInfoRef.InfoRef.Value;
+            for (int i = 0; i < a.PersistencyArchetypes.Length; i++)
+            {
+                Debug.Log($"---Archetype{i.ToString()}---");
+                Debug.Log(a.PersistencyArchetypes[i].PersistableTypeHandleCombinationHash.ToString());
+                Debug.Log(a.PersistencyArchetypes[i].AmountEntities.ToString());
+                for (int j = 0; j < a.PersistencyArchetypes[i].PersistableTypeHandles.Length; j++)
+                {
+                    Debug.Log(ComponentType.FromTypeIndex(settings.GetTypeIndex(a.PersistencyArchetypes[i].PersistableTypeHandles[j])).ToString());
+                }
+            }
+            Debug.Log("------AllUniqueTypes------");
+            for (int i = 0; i < a.AllUniqueTypeHandles.Length; i++)
+            {
+                Debug.Log(ComponentType.FromTypeIndex(settings.GetTypeIndex(a.AllUniqueTypeHandles[i])).ToString());
+            }
         }
     }
     

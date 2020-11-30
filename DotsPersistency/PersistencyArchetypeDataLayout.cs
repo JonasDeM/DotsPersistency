@@ -52,14 +52,22 @@ namespace DotsPersistency
     
     public struct PersistencyArchetype
     {
-        public FixedList128<PersistableTypeHandle> PersistableTypeHandles;
+        public BlobArray<PersistableTypeHandle> PersistableTypeHandles; // could be a blob array
         public Hash128 PersistableTypeHandleCombinationHash;
-        public int Amount;
+        
+        // This is the amount of entities with this PersistencyArchetype
+        public int AmountEntities;
     }
-    
-    public struct ScenePersistencyInfo : IComponentData
+
+    public struct ScenePersistencyInfo
     {
-        public BlobAssetReference<BlobArray<PersistencyArchetype>> PersistencyArchetypes;
+        public BlobArray<PersistableTypeHandle> AllUniqueTypeHandles;
+        public BlobArray<PersistencyArchetype> PersistencyArchetypes;
+    }
+
+    public struct ScenePersistencyInfoRef : IComponentData
+    {
+        public BlobAssetReference<ScenePersistencyInfo> InfoRef;
     }
     
     // A persisting entity needs this component

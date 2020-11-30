@@ -2,8 +2,11 @@
 using System.Collections.Generic;
 using DotsPersistency.Containers;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
+using Unity.Mathematics;
+using Unity.Transforms;
 using Debug = UnityEngine.Debug;
 
 namespace DotsPersistency
@@ -157,9 +160,9 @@ namespace DotsPersistency
             var returnJobHandle = inputDeps;
             var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
 
-            for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.Count; persistenceArchetypeIndex++)
+            for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.DataLayoutCount; persistenceArchetypeIndex++)
             {
-                PersistencyArchetypeDataLayout dataLayout = dataContainer.GetPersistenceArchetypeDataLayoutAtIndex(persistenceArchetypeIndex);
+                PersistencyArchetypeDataLayout dataLayout = dataContainer.GetDataLayoutAtIndex(persistenceArchetypeIndex);
                 ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
                 var dataForArchetype = dataContainer.GetSubArrayAtIndex(persistenceArchetypeIndex);
                 
@@ -202,7 +205,7 @@ namespace DotsPersistency
                     }
                     else
                     {
-                        jobHandle = new UpdateMetaDataForComponentTag()
+                        jobHandle = new UpdateMetaDataForTagComponent()
                         {
                             PersistenceStateType = persistenceStateTypeHandle,
                             OutputData = outputData
@@ -222,9 +225,9 @@ namespace DotsPersistency
             var returnJobHandle = inputDeps;
             var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
 
-            for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.Count; persistenceArchetypeIndex++)
+            for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.DataLayoutCount; persistenceArchetypeIndex++)
             {
-                PersistencyArchetypeDataLayout dataLayout = dataContainer.GetPersistenceArchetypeDataLayoutAtIndex(persistenceArchetypeIndex);
+                PersistencyArchetypeDataLayout dataLayout = dataContainer.GetDataLayoutAtIndex(persistenceArchetypeIndex);
                 ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
                 var dataForArchetype = dataContainer.GetSubArrayAtIndex(persistenceArchetypeIndex);
                 
@@ -307,24 +310,46 @@ namespace DotsPersistency
         
         private JobHandle SchedulePersistGroupedJob(JobHandle inputDeps, PersistentDataContainer dataContainer)
         {
-            throw new NotImplementedException();
+            PersistableEntitiesQuery.SetSharedComponentFilter(new PersistencyContainerTag { DataIdentifier = dataContainer.DataIdentifier });
             
-            // query.ResetFilter();
+            // todo only grab these once per update
+            var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
+            var persistencyArchetypeIndexInContainerTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>(true);
+
+            PersistencySettings.TypeIndexLookup typeIndexLookup = PersistencySettings.GetTypeIndexLookup();
+
+            // always temp job allocations
+            ComponentTypeHandleArray componentTypeHandles = CreateComponentTypeHandleArray(typeIndexLookup, dataContainer, true);
+            BufferTypeHandleArray bufferTypeHandles = CreateBufferTypeHandleArray(typeIndexLookup, dataContainer, true);
+
+            inputDeps = new GroupedPersistJob()
+            {
+                DataContainer = dataContainer,
+                PersistenceStateTypeHandle = persistenceStateTypeHandle,
+                PersistencyArchetypeIndexInContainerTypeHandle = persistencyArchetypeIndexInContainerTypeHandle,
+                DynamicComponentTypeHandles = componentTypeHandles,
+                DynamicBufferTypeHandles = bufferTypeHandles,
+                TypeIndexLookup = typeIndexLookup
+            }.ScheduleParallel(PersistableEntitiesQuery, 1, inputDeps);
+
+            PersistableEntitiesQuery.ResetFilter();
+            return inputDeps;
         }
 
         private JobHandle ScheduleApplyGroupedJob(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
         {
-            EntityQuery query = GetEntityQuery(typeof(PersistenceState), typeof(PersistencyContainerTag), typeof(PersistencyArchetypeIndexInContainer)); // todo use cached query
-            query.SetSharedComponentFilter(new PersistencyContainerTag() { DataIdentifier = dataContainer.DataIdentifier});
+            PersistableEntitiesQuery.SetSharedComponentFilter(new PersistencyContainerTag { DataIdentifier = dataContainer.DataIdentifier });
             
-            // todo use only grab these once per update
+            // todo only grab these once per update
             var entityTypeHandle = GetEntityTypeHandle();
-            var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>();
-            var persistencyArchetypeIndexInContainerTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>();
+            var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
+            var persistencyArchetypeIndexInContainerTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>(true);
 
-            // todo cache a list of type indices in the container
-            ComponentTypeHandleArray componentTypeHandles = new ComponentTypeHandleArray(0, Allocator.TempJob);
-            BufferTypeHandleArray bufferTypeHandles = new BufferTypeHandleArray(0, Allocator.TempJob);
+            PersistencySettings.TypeIndexLookup typeIndexLookup = PersistencySettings.GetTypeIndexLookup();
+
+            // always temp job allocations
+            ComponentTypeHandleArray componentTypeHandles = CreateComponentTypeHandleArray(typeIndexLookup, dataContainer);
+            BufferTypeHandleArray bufferTypeHandles = CreateBufferTypeHandleArray(typeIndexLookup, dataContainer);
             
             inputDeps = new GroupedApplyJob()
             {
@@ -334,16 +359,51 @@ namespace DotsPersistency
                 PersistencyArchetypeIndexInContainerTypeHandle = persistencyArchetypeIndexInContainerTypeHandle,
                 DynamicComponentTypeHandles = componentTypeHandles,
                 DynamicBufferTypeHandles = bufferTypeHandles,
-                TypeIndexLookup = PersistencySettings.GetTypeIndexLookup(),
+                TypeIndexLookup = typeIndexLookup,
                 Ecb = ecbSystem.CreateCommandBuffer().AsParallelWriter()
-            }.ScheduleParallel(query, 1, inputDeps);
-            componentTypeHandles.Dispose(inputDeps);
-            bufferTypeHandles.Dispose(inputDeps);
-            
-            query.ResetFilter();
+            }.ScheduleParallel(PersistableEntitiesQuery, 1, inputDeps);
+
+            PersistableEntitiesQuery.ResetFilter();
             return inputDeps;
         }
+
+        private ComponentTypeHandleArray CreateComponentTypeHandleArray(PersistencySettings.TypeIndexLookup typeIndexLookup, PersistentDataContainer dataContainer, bool readOnly = false)
+        {
+            ComponentTypeHandleArray array = new ComponentTypeHandleArray(dataContainer.UniqueComponentDataTypeHandleCount, Allocator.TempJob);
+            int amountAdded = 0;
+            for (int i = 0; i < dataContainer.UniqueTypeHandleCount; i++)
+            {
+                int typeIndex = typeIndexLookup.GetTypeIndex(dataContainer.GetUniqueTypeHandleAtIndex(i));
+                ComponentType componentType = readOnly ? ComponentType.ReadOnly(typeIndex) : ComponentType.ReadWrite(typeIndex);
+                if (!componentType.IsBuffer)
+                {
+                    var typeHandle = GetDynamicComponentTypeHandle(componentType);
+                    array[amountAdded] = typeHandle;
+                    amountAdded += 1;
+                }
+            }
+
+            return array;
+        }
         
+        private BufferTypeHandleArray CreateBufferTypeHandleArray(PersistencySettings.TypeIndexLookup typeIndexLookup, PersistentDataContainer dataContainer, bool readOnly = false)
+        {
+            BufferTypeHandleArray array = new BufferTypeHandleArray(dataContainer.UniqueBufferTypeHandleCount, Allocator.TempJob);
+            int amountAdded = 0;
+            for (int i = 0; i < dataContainer.UniqueTypeHandleCount; i++)
+            {
+                int typeIndex = typeIndexLookup.GetTypeIndex(dataContainer.GetUniqueTypeHandleAtIndex(i));
+                ComponentType componentType = readOnly ? ComponentType.ReadOnly(typeIndex) : ComponentType.ReadWrite(typeIndex);
+                if (componentType.IsBuffer)
+                {
+                    array[amountAdded] = this.GetDynamicBufferTypeHandle(componentType);
+                    amountAdded += 1;
+                }
+            }
+
+            return array;
+        }
+
         // The equality/hash implementation of ComponentType does not take into account access mode type
         private class CustomComparer : IEqualityComparer<ComponentType>
         {
