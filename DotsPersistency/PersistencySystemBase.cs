@@ -139,26 +139,27 @@ namespace DotsPersistency
             return query;
         }
         
-        protected JobHandle SchedulePersist(JobHandle inputDeps, PersistentDataContainer dataContainer)
+        protected JobHandle SchedulePersist(JobHandle inputDeps, PersistentDataContainer dataContainer, ComponentTypeHandle<PersistenceState> persistenceStateTypeHandle,
+            ComponentTypeHandle<PersistencyArchetypeIndexInContainer> persistencyArchetypeIndexInContainerTypeHandle)
         {
             if (PersistencySettings.UseGroupedJobs())
-                return SchedulePersistGroupedJob(inputDeps, dataContainer);
+                return SchedulePersistGroupedJob(inputDeps, dataContainer, persistenceStateTypeHandle, persistencyArchetypeIndexInContainerTypeHandle);
             else
-                return SchedulePersistJobs(inputDeps, dataContainer);
+                return SchedulePersistJobs(inputDeps, dataContainer, persistenceStateTypeHandle);
         }
 
-        protected JobHandle ScheduleApply(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
+        protected JobHandle ScheduleApply(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem,
+            EntityTypeHandle entityTypeHandle, ComponentTypeHandle<PersistenceState> persistenceStateTypeHandle, ComponentTypeHandle<PersistencyArchetypeIndexInContainer> indexInContainerTypeHandle)
         {
             if (PersistencySettings.UseGroupedJobs())
-                return ScheduleApplyGroupedJob(inputDeps, dataContainer, ecbSystem);
+                return ScheduleApplyGroupedJob(inputDeps, dataContainer, ecbSystem, entityTypeHandle, persistenceStateTypeHandle, indexInContainerTypeHandle);
             else
-                return ScheduleApplyJobs(inputDeps, dataContainer, ecbSystem);
+                return ScheduleApplyJobs(inputDeps, dataContainer, ecbSystem, entityTypeHandle, persistenceStateTypeHandle);
         }
         
-        private JobHandle SchedulePersistJobs(JobHandle inputDeps, PersistentDataContainer dataContainer)
+        private JobHandle SchedulePersistJobs(JobHandle inputDeps, PersistentDataContainer dataContainer, ComponentTypeHandle<PersistenceState> persistenceStateTypeHandle)
         {
             var returnJobHandle = inputDeps;
-            var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
 
             for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.DataLayoutCount; persistenceArchetypeIndex++)
             {
@@ -220,11 +221,10 @@ namespace DotsPersistency
             return returnJobHandle;
         }
         
-        private JobHandle ScheduleApplyJobs(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
+        private JobHandle ScheduleApplyJobs(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem,
+            EntityTypeHandle entityTypeHandle, ComponentTypeHandle<PersistenceState> persistenceStateTypeHandle)
         {
             var returnJobHandle = inputDeps;
-            var entityTypeHandle = GetEntityTypeHandle();
-            var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
 
             for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.DataLayoutCount; persistenceArchetypeIndex++)
             {
@@ -309,13 +309,10 @@ namespace DotsPersistency
             return returnJobHandle;
         }
         
-        private JobHandle SchedulePersistGroupedJob(JobHandle inputDeps, PersistentDataContainer dataContainer)
+        private JobHandle SchedulePersistGroupedJob(JobHandle inputDeps, PersistentDataContainer dataContainer, ComponentTypeHandle<PersistenceState> persistenceStateTypeHandle,
+            ComponentTypeHandle<PersistencyArchetypeIndexInContainer> persistencyArchetypeIndexInContainerTypeHandle)
         {
             PersistableEntitiesQuery.SetSharedComponentFilter(new PersistencyContainerTag { DataIdentifier = dataContainer.DataIdentifier });
-            
-            // todo only grab these once per update
-            var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
-            var persistencyArchetypeIndexInContainerTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>(true);
 
             PersistencySettings.TypeIndexLookup typeIndexLookup = PersistencySettings.GetTypeIndexLookup();
 
@@ -337,14 +334,10 @@ namespace DotsPersistency
             return inputDeps;
         }
 
-        private JobHandle ScheduleApplyGroupedJob(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
+        private JobHandle ScheduleApplyGroupedJob(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem,
+            EntityTypeHandle entityTypeHandle, ComponentTypeHandle<PersistenceState> persistenceStateTypeHandle, ComponentTypeHandle<PersistencyArchetypeIndexInContainer> indexInContainerTypeHandle)
         {
             PersistableEntitiesQuery.SetSharedComponentFilter(new PersistencyContainerTag { DataIdentifier = dataContainer.DataIdentifier });
-            
-            // todo only grab these once per update
-            var entityTypeHandle = GetEntityTypeHandle();
-            var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
-            var persistencyArchetypeIndexInContainerTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>(true);
 
             PersistencySettings.TypeIndexLookup typeIndexLookup = PersistencySettings.GetTypeIndexLookup();
 
@@ -357,7 +350,7 @@ namespace DotsPersistency
                 DataContainer = dataContainer,
                 EntityTypeHandle = entityTypeHandle,
                 PersistenceStateTypeHandle = persistenceStateTypeHandle,
-                PersistencyArchetypeIndexInContainerTypeHandle = persistencyArchetypeIndexInContainerTypeHandle,
+                PersistencyArchetypeIndexInContainerTypeHandle = indexInContainerTypeHandle,
                 DynamicComponentTypeHandles = componentTypeHandles,
                 DynamicBufferTypeHandles = bufferTypeHandles,
                 TypeIndexLookup = typeIndexLookup,

@@ -43,6 +43,9 @@ namespace DotsPersistency
 
             if (!_persistRequests.IsEmpty)
             {
+                ComponentTypeHandle<PersistenceState> indexTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
+                ComponentTypeHandle<PersistencyArchetypeIndexInContainer> archetypeIndexTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>(true);
+                
                 var sceneSectionsToUnload = _persistRequests.ToComponentDataArray<SceneSectionData>(Allocator.TempJob);
                 var tempHashSet = new NativeHashSet<Hash128>(sceneSectionsToUnload.Length, Allocator.Temp);
                 var jobHandles = new NativeList<JobHandle>(sceneSectionsToUnload.Length, Allocator.Temp);
@@ -52,7 +55,7 @@ namespace DotsPersistency
                     if (!tempHashSet.Contains(containerIdentifier))
                     {
                         var writeContainer = _containerSystem.PersistentDataStorage.GetWriteContainerForCurrentIndex(containerIdentifier);
-                        JobHandle persistDep = SchedulePersist(inputDependencies, writeContainer);
+                        JobHandle persistDep = SchedulePersist(inputDependencies, writeContainer, indexTypeHandle, archetypeIndexTypeHandle);
                         jobHandles.Add(persistDep);
                         tempHashSet.Add(containerIdentifier);
                     }

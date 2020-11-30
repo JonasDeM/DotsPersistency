@@ -61,20 +61,26 @@ namespace DotsPersistency
 
         protected override void OnUpdate()
         {
-            JobHandle inputDependencies = Dependency;
+            if (_initialStatePersistRequests.Count + _applyRequests.Count == 0)
+                return;
+
+            EntityTypeHandle entityTypeHandle = GetEntityTypeHandle();
+            ComponentTypeHandle<PersistenceState> indexTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
+            ComponentTypeHandle<PersistencyArchetypeIndexInContainer> archetypeIndexTypeHandle = GetComponentTypeHandle<PersistencyArchetypeIndexInContainer>(true);
             
+            JobHandle inputDependencies = Dependency;
             NativeArray<JobHandle> jobHandles = new NativeArray<JobHandle>(_initialStatePersistRequests.Count + _applyRequests.Count, Allocator.Temp);
 
             for (var i = 0; i < _initialStatePersistRequests.Count; i++)
             {
-                jobHandles[i] = SchedulePersist(inputDependencies, _initialStatePersistRequests[i]);
+                jobHandles[i] = SchedulePersist(inputDependencies, _initialStatePersistRequests[i], indexTypeHandle, archetypeIndexTypeHandle);
             }
 
             int applyStartIndex = _initialStatePersistRequests.Count;
             for (var i = 0; i < _applyRequests.Count; i++)
             {
                 int index = applyStartIndex + i;
-                jobHandles[index] = ScheduleApply(inputDependencies,  _applyRequests[index], _ecbSystem);
+                jobHandles[index] = ScheduleApply(inputDependencies, _applyRequests[index], _ecbSystem, entityTypeHandle, indexTypeHandle, archetypeIndexTypeHandle);
             }
             _ecbSystem.AddJobHandleForProducer(JobHandle.CombineDependencies(jobHandles.Slice(applyStartIndex)));
             
