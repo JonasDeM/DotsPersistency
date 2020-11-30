@@ -1,6 +1,7 @@
 ﻿// Author: Jonas De Maeseneer
 
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Scenes;
@@ -62,19 +63,24 @@ namespace DotsPersistency
         {
             JobHandle inputDependencies = Dependency;
             
-            foreach (var container in _initialStatePersistRequests)
+            NativeArray<JobHandle> jobHandles = new NativeArray<JobHandle>(_initialStatePersistRequests.Count + _applyRequests.Count, Allocator.Temp);
+
+            for (var i = 0; i < _initialStatePersistRequests.Count; i++)
             {
-                Dependency = JobHandle.CombineDependencies(Dependency, SchedulePersist(inputDependencies, container));
+                jobHandles[i] = SchedulePersist(inputDependencies, _initialStatePersistRequests[i]);
             }
 
-            JobHandle applyDependencies = new JobHandle();
-            foreach (var container in _applyRequests)
+            int applyStartIndex = _initialStatePersistRequests.Count;
+            for (var i = 0; i < _applyRequests.Count; i++)
             {
-                applyDependencies = JobHandle.CombineDependencies(applyDependencies,  ScheduleApply(inputDependencies, container, _ecbSystem));
+                int index = applyStartIndex + i;
+                jobHandles[index] = ScheduleApply(inputDependencies,  _applyRequests[index], _ecbSystem);
             }
-            _ecbSystem.AddJobHandleForProducer(applyDependencies);
-            Dependency = JobHandle.CombineDependencies(Dependency, applyDependencies);
+            _ecbSystem.AddJobHandleForProducer(JobHandle.CombineDependencies(jobHandles.Slice(applyStartIndex)));
             
+            Dependency = JobHandle.CombineDependencies(jobHandles);
+
+            jobHandles.Dispose();
             _initialStatePersistRequests.Clear();
             _applyRequests.Clear();
         }

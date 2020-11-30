@@ -44,17 +44,23 @@ namespace DotsPersistency
             if (!_persistRequests.IsEmpty)
             {
                 var sceneSectionsToUnload = _persistRequests.ToComponentDataArray<SceneSectionData>(Allocator.TempJob);
-                var tempHashSet = new NativeHashSet<Hash128>(4, Allocator.Temp);
+                var tempHashSet = new NativeHashSet<Hash128>(sceneSectionsToUnload.Length, Allocator.Temp);
+                var jobHandles = new NativeList<JobHandle>(sceneSectionsToUnload.Length, Allocator.Temp);
                 foreach (SceneSectionData sceneSectionData in sceneSectionsToUnload)
                 {
                     var containerIdentifier = sceneSectionData.SceneGUID;
                     if (!tempHashSet.Contains(containerIdentifier))
                     {
                         var writeContainer = _containerSystem.PersistentDataStorage.GetWriteContainerForCurrentIndex(containerIdentifier);
-                        Dependency = JobHandle.CombineDependencies(Dependency, SchedulePersist(inputDependencies, writeContainer));
+                        JobHandle persistDep = SchedulePersist(inputDependencies, writeContainer);
+                        jobHandles.Add(persistDep);
                         tempHashSet.Add(containerIdentifier);
                     }
                 }
+
+                Dependency = JobHandle.CombineDependencies(jobHandles);
+                
+                jobHandles.Dispose();
                 sceneSectionsToUnload.Dispose();
                 tempHashSet.Dispose();
             }

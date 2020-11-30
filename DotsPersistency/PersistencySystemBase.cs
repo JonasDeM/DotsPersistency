@@ -223,6 +223,7 @@ namespace DotsPersistency
         private JobHandle ScheduleApplyJobs(JobHandle inputDeps, PersistentDataContainer dataContainer, EntityCommandBufferSystem ecbSystem)
         {
             var returnJobHandle = inputDeps;
+            var entityTypeHandle = GetEntityTypeHandle();
             var persistenceStateTypeHandle = GetComponentTypeHandle<PersistenceState>(true);
 
             for (int persistenceArchetypeIndex = 0; persistenceArchetypeIndex < dataContainer.DataLayoutCount; persistenceArchetypeIndex++)
@@ -281,7 +282,7 @@ namespace DotsPersistency
                             TypeToRemove = runtimeType,
                             TypeSize = typeInfo.ElementSize,
                             PersistenceStateType = persistenceStateTypeHandle,
-                            EntityType = GetEntityTypeHandle(),
+                            EntityType = entityTypeHandle,
                             InputData = inputData,
                             Ecb = ecbSystem.CreateCommandBuffer().AsParallelWriter()
                         }.Schedule(query, inputDeps);
@@ -291,7 +292,7 @@ namespace DotsPersistency
                             ComponentType = runtimeType,
                             TypeSize = typeInfo.ElementSize,
                             PersistenceStateType = persistenceStateTypeHandle,
-                            EntityType = GetEntityTypeHandle(),
+                            EntityType = entityTypeHandle,
                             InputData = inputData,
                             Ecb = ecbSystem.CreateCommandBuffer().AsParallelWriter()
                         }.Schedule(excludeQuery, inputDeps);
