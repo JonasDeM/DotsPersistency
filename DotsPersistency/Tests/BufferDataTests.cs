@@ -310,8 +310,8 @@ namespace DotsPersistency.Tests
             array3Data.Dispose();
             m_Manager.DestroyEntity(m_Manager.CreateEntityQuery(typeof(PersistenceState)));
         }
-        
-        public Entity CreateEntity<T, U>(int index) 
+
+        private Entity CreateEntity<T, U>(int index) 
             where T : struct, IBufferElementData
             where U : struct, IBufferElementData
         {
@@ -363,9 +363,9 @@ namespace DotsPersistency.Tests
                 }
             }
         }
-        
+
         [InternalBufferCapacity(2)]
-        struct DynamicBufferData1 : IBufferElementData
+        private struct PersistentDynamicBufferData1 : IBufferElementData
         {
             public int Value;
             
@@ -374,38 +374,7 @@ namespace DotsPersistency.Tests
                 return Value.ToString();
             }
         }
-        struct DynamicBufferData2 : IBufferElementData
-        {
-#pragma warning disable 649
-            public float Value;
-#pragma warning restore 649
-            
-            public override string ToString()
-            {
-                return Value.ToString();
-            }
-        }
-        struct DynamicBufferData3 : IBufferElementData
-        {
-            public byte Value;
-            
-            public override string ToString()
-            {
-                return Value.ToString();
-            }
-        }
-        
-        [InternalBufferCapacity(2)]
-        struct PersistentDynamicBufferData1 : IBufferElementData
-        {
-            public int Value;
-            
-            public override string ToString()
-            {
-                return Value.ToString();
-            }
-        }
-        struct PersistentDynamicBufferData2 : IBufferElementData
+        private struct PersistentDynamicBufferData2 : IBufferElementData
         {
             public float Value;
             
@@ -414,7 +383,7 @@ namespace DotsPersistency.Tests
                 return Value.ToString();
             }
         }
-        struct PersistentDynamicBufferData3 : IBufferElementData
+        private struct PersistentDynamicBufferData3 : IBufferElementData
         {
             public byte Value;
             

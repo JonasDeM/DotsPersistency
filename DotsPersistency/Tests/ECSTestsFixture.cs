@@ -1,41 +1,11 @@
-﻿using System.Linq;
+﻿using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Entities;
+using UnityEngine;
 
 namespace DotsPersistency.Tests
 {
-    public struct EcsTestData : IComponentData
-    {
-        public int value;
-        
-        public EcsTestData(int value)
-        {
-            this.value = value;
-        }
-    }
-    public struct EcsTestFloatData2 : IComponentData
-    {
-        public float Value0;
-        public float Value1;
-    }
-    public struct EcsTestData5 : IComponentData
-    {
-        public EcsTestData5(int value)
-        {
-            value0 = value;
-            value1 = value;
-            value2 = value;
-            value3 = value;
-            value4 = value;
-        }
-        
-        public int value0;
-        public int value1;
-        public int value2;
-        public int value3;
-        public int value4;
-    }
-    
     public abstract class EcsTestsFixture
     {
         protected World m_PreviousWorld;
@@ -87,5 +57,87 @@ namespace DotsPersistency.Tests
             }
         }
         protected EntityQueryBuilder Entities => World.DefaultGameObjectInjectionWorld.GetOrCreateSystem<EntityForEachSystem>().GetQueryBuilder();
+
+        protected PersistencySettings CreateSettings(List<Type> types)
+        {
+            var retVal = ScriptableObject.CreateInstance<PersistencySettings>();
+            foreach (var type in types)
+            {
+                retVal.AddPersistableTypeInEditor(type.FullName);
+            }
+
+            return retVal;
+        }
+    }
+    
+    public struct EcsTestData : IComponentData
+    {
+        public int value;
+        
+        public EcsTestData(int value)
+        {
+            this.value = value;
+        }
+    }
+    public struct EcsTestFloatData2 : IComponentData
+    {
+        public float Value0;
+        public float Value1;
+    }
+    public struct EcsTestData5 : IComponentData
+    {
+        public EcsTestData5(int value)
+        {
+            value0 = value;
+            value1 = value;
+            value2 = value;
+            value3 = value;
+            value4 = value;
+        }
+        
+        public int value0;
+        public int value1;
+        public int value2;
+        public int value3;
+        public int value4;
+    }
+    
+    
+    [InternalBufferCapacity(2)]
+    public struct DynamicBufferData1 : IBufferElementData
+    {
+        public int Value;
+            
+        public override string ToString()
+        {
+            return Value.ToString();
+        }
+    }
+    
+    public struct DynamicBufferData2 : IBufferElementData
+    {
+#pragma warning disable 649
+        public float Value;
+#pragma warning restore 649
+            
+        public override string ToString()
+        {
+            return Value.ToString();
+        }
+    }
+    
+    public struct DynamicBufferData3 : IBufferElementData
+    {
+        public byte Value;
+            
+        public override string ToString()
+        {
+            return Value.ToString();
+        }
+    }
+    
+    public struct EmptyEcsTestData : IComponentData
+    {
+            
     }
 }

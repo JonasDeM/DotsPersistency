@@ -345,7 +345,7 @@ namespace DotsPersistency.Tests
             var data = new NativeArray<byte>(3 * PersistenceMetaData.SizeOfStruct, Allocator.TempJob);
 
             // Action
-            var readJob = new UpdateMetaDataForComponentTag()
+            var readJob = new UpdateMetaDataForTagComponent()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = data
@@ -392,14 +392,15 @@ namespace DotsPersistency.Tests
             
             // Cleanup
             data.Dispose();
+            m_Manager.DestroyEntity(m_Manager.CreateEntityQuery(typeof(PersistenceState)));
         }
 
-        struct EmptyEcsPersistingTestData : IComponentData
+        private struct EmptyEcsPersistingTestData : IComponentData
         {
             
         }
         
-        struct EcsPersistingTestData : IComponentData, IEquatable<EcsTestData>, IEquatable<EcsPersistingTestData>
+        private struct EcsPersistingTestData : IComponentData, IEquatable<EcsTestData>, IEquatable<EcsPersistingTestData>
         {
             public EcsTestData data;
             public bool Equals(EcsTestData other)
@@ -421,7 +422,7 @@ namespace DotsPersistency.Tests
             }
         }
         
-        struct EcsPersistingFloatTestData2 : IComponentData, IEquatable<EcsTestFloatData2>, IEquatable<EcsPersistingFloatTestData2>
+        private struct EcsPersistingFloatTestData2 : IComponentData, IEquatable<EcsTestFloatData2>, IEquatable<EcsPersistingFloatTestData2>
         {
             public EcsTestFloatData2 data;
 
@@ -444,7 +445,7 @@ namespace DotsPersistency.Tests
             }
         }
         
-        struct EcsPersistingTestData5 : IComponentData, IEquatable<EcsTestData5>, IEquatable<EcsPersistingTestData5>
+        private struct EcsPersistingTestData5 : IComponentData, IEquatable<EcsTestData5>, IEquatable<EcsPersistingTestData5>
         {
             public EcsTestData5 data;
 
@@ -467,7 +468,7 @@ namespace DotsPersistency.Tests
             }
         }
         
-        public Entity CreateEntity<T, U>(int index, T value, U value2) 
+        private Entity CreateEntity<T, U>(int index, T value, U value2) 
             where T : struct, IComponentData
             where U : struct, IComponentData
         {
@@ -478,7 +479,7 @@ namespace DotsPersistency.Tests
             return entity;
         }
 
-        void CreateEntities(int count)
+        private void CreateEntities(int count)
         {
             for (int i = 0; i != count; i++)
             {

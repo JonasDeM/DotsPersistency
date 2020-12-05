@@ -12,6 +12,7 @@ using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 [assembly:InternalsVisibleTo("io.jonasdem.quicksave.editor")]
+[assembly:InternalsVisibleTo("io.jonasdem.dotspersistency.tests")]
 
 namespace DotsPersistency
 {
@@ -73,21 +74,23 @@ namespace DotsPersistency
             return _allPersistableTypeInfos[typeHandle.Handle - 1].MaxElements;
         }
         
-        // Should only be used in conversion
-        public bool GetPersistableTypeHandleFromFullTypeName(string fullTypeName, out PersistableTypeHandle persistableTypeHandle)
+        public PersistableTypeHandle GetPersistableTypeHandleFromFullTypeName(string fullTypeName)
         {
             for (int i = 0; i < _allPersistableTypeInfos.Count; i++)
             {
                 if (_allPersistableTypeInfos[i].FullTypeName == fullTypeName)
                 {
                     Debug.Assert(i < ushort.MaxValue);
-                    persistableTypeHandle = new PersistableTypeHandle {Handle = (ushort)(i+1)};
-                    return true;
+                    return new PersistableTypeHandle {Handle = (ushort)(i+1)};
                 }
             }
-
-            persistableTypeHandle = default;
-            return false;
+            
+            throw new ArgumentException($"{fullTypeName} was not a persistable type.");
+        }
+        
+        public bool ContainsType(string fullTypeName)
+        {
+            return _allPersistableTypeInfos.Any(info => info.FullTypeName == fullTypeName);
         }
 
         public bool UseGroupedJobs()
@@ -174,7 +177,7 @@ namespace DotsPersistency
 
             public int GetTypeIndex(PersistableTypeHandle typeHandle)
             {
-                Debug.Assert(typeHandle.IsValid, "Expected a valid type handle");
+                Debug.Assert(typeHandle.IsValid); // "Expected a valid type handle"
                 return TypeIndexArray[typeHandle.Handle - 1];
             }
 

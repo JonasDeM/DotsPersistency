@@ -23,9 +23,9 @@ namespace DotsPersistency.Hybrid
             
             foreach (var fullTypeName in FullTypeNamesToPersist)
             {
-                if (persistencySettings.GetPersistableTypeHandleFromFullTypeName(fullTypeName, out PersistableTypeHandle typeHandle))
+                if (persistencySettings.ContainsType(fullTypeName))
                 {
-                    listToFill.Add(typeHandle); 
+                    listToFill.Add(persistencySettings.GetPersistableTypeHandleFromFullTypeName(fullTypeName)); 
                 }
                 else if (!string.IsNullOrEmpty(fullTypeName))
                 {
@@ -33,12 +33,12 @@ namespace DotsPersistency.Hybrid
                 }
             }
 
-            indexInScene = CalculateArrayIndex();
-            typeHandleCombinationHash = GetHash(listToFill);
+            indexInScene = CalculateArrayIndex(persistencySettings);
+            typeHandleCombinationHash = GetTypeHandleCombinationHash(persistencySettings);
         }
 
         // The only reason for this is deterministic conversion
-        internal int CalculateArrayIndex()
+        internal int CalculateArrayIndex(PersistencySettings settings)
         {
             Transform rootParent = transform;
             
@@ -54,14 +54,14 @@ namespace DotsPersistency.Hybrid
                     break;
                 var compsInChildren = rootGameObject.GetComponentsInChildren<PersistencyAuthoring>();
                 
-                arrayIndex += compsInChildren.Count(comp => FullTypeNamesToPersist.SequenceEqual(comp.FullTypeNamesToPersist));
+                arrayIndex += compsInChildren.Count(comp => GetTypeHandleCombinationHash(settings).Equals(comp.GetTypeHandleCombinationHash(settings)));
             }
             foreach (PersistencyAuthoring child in rootParent.GetComponentsInChildren<PersistencyAuthoring>())
             {
                 if (child == this)
                     break;
 
-                if (FullTypeNamesToPersist.SequenceEqual(child.FullTypeNamesToPersist))
+                if (GetTypeHandleCombinationHash(settings).Equals(child.GetTypeHandleCombinationHash(settings)))
                 {
                     arrayIndex += 1;
                 }
@@ -69,28 +69,34 @@ namespace DotsPersistency.Hybrid
             return arrayIndex;
         }
         
-        internal static Hash128 GetHash(List<PersistableTypeHandle> persistableTypeHandles)
+        private Hash128 GetTypeHandleCombinationHash(PersistencySettings settings)
         {
             ulong hash1 = 0;
             ulong hash2 = 0;
 
-            for (int i = 0; i < persistableTypeHandles.Count; i++)
+            for (int i = 0; i < FullTypeNamesToPersist.Count; i++)
             {
-                unchecked
+                string fullTypeName = FullTypeNamesToPersist[i];
+                if (settings.ContainsType(fullTypeName))
                 {
-                    if (i%2 == 0)
+                    PersistableTypeHandle handle = settings.GetPersistableTypeHandleFromFullTypeName(fullTypeName); 
+                    
+                    unchecked
                     {
-                        ulong hash = 17;
-                        hash = hash * 31 + hash1;
-                        hash = hash * 31 + (ulong)persistableTypeHandles[i].Handle.GetHashCode();
-                        hash1 = hash;
-                    }
-                    else
-                    {
-                        ulong hash = 17;
-                        hash = hash * 31 + hash2;
-                        hash = hash * 31 + (ulong)persistableTypeHandles[i].Handle.GetHashCode();
-                        hash2 = hash;
+                        if (i%2 == 0)
+                        {
+                            ulong hash = 17;
+                            hash = hash * 31 + hash1;
+                            hash = hash * 31 + (ulong)handle.Handle.GetHashCode();
+                            hash1 = hash;
+                        }
+                        else
+                        {
+                            ulong hash = 17;
+                            hash = hash * 31 + hash2;
+                            hash = hash * 31 + (ulong)handle.Handle.GetHashCode();
+                            hash2 = hash;
+                        }
                     }
                 }
             }

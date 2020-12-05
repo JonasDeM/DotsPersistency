@@ -13,22 +13,40 @@ using Hash128 = Unity.Entities.Hash128;
 // ReSharper disable AccessToDisposedClosure
 
 [assembly:InternalsVisibleTo("io.jonasdem.quicksave.editor")]
+[assembly:InternalsVisibleTo("io.jonasdem.dotspersistency.tests")]
 
 namespace DotsPersistency.Hybrid
 {
-    [ConverterVersion("Jonas", 18)]
+    [ConverterVersion("Jonas", 20)]
     [UpdateInGroup(typeof(GameObjectAfterConversionGroup))]
     public class PersistencyConversionSystem : GameObjectConversionSystem
     {
         protected override void OnUpdate()
         {
-            var settings = PersistencySettings.Get();
+            PersistencySettings settings = PersistencySettings.Get();
             if (settings == null)
             {
                 return;
             }
             
-            Hash128 sceneGUID = default;
+            var objectsToConvert = new List<(PersistencyAuthoring, Entity)>();
+            Entities.ForEach((PersistencyAuthoring persistencyAuthoring) =>
+            {
+                objectsToConvert.Add((persistencyAuthoring, GetPrimaryEntity(persistencyAuthoring)));
+            });
+
+            Convert(objectsToConvert, (settings, GetPrimaryEntity(settings)), DstEntityManager);
+        }
+
+        // static so we can test this method
+        internal static void Convert(List<(PersistencyAuthoring, Entity)> objectsToConvert, (PersistencySettings, Entity) settingsAndEntity, EntityManager dstManager, Hash128 containerGUID = default)
+        {
+            PersistencySettings settings = settingsAndEntity.Item1;
+            if (settings == null)
+            {
+                return;
+            }
+            
             List<BlobCreationInfo> blobCreationInfo = new List<BlobCreationInfo>(16);
             HashSet<PersistableTypeHandle> allUniqueTypeHandles = new HashSet<PersistableTypeHandle>();
             Dictionary<Hash128, ushort> hashToArchetypeIndexInContainer = new Dictionary<Hash128, ushort>(16);
@@ -36,15 +54,16 @@ namespace DotsPersistency.Hybrid
             // to avoid tons of GC allocations
             List<PersistableTypeHandle> typeHandleList = new List<PersistableTypeHandle>(16);
 
-            Entities.ForEach((PersistencyAuthoring persistencyAuthoring) =>
+            foreach (var pair in objectsToConvert)
             {
-                if (sceneGUID == default)
+                PersistencyAuthoring persistencyAuthoring = pair.Item1;
+                Entity e = pair.Item2;
+                
+                if (containerGUID == default)
                 {
-                    sceneGUID = GetSceneGUID(persistencyAuthoring.gameObject);
+                    containerGUID = GetSceneGUID(persistencyAuthoring.gameObject);
                 }
 
-                Entity e = GetPrimaryEntity(persistencyAuthoring);
-                
                 // Gather info for own components & persistencySceneInfo entity
                 typeHandleList.Clear();
                 persistencyAuthoring.GetConversionInfo(settings, typeHandleList, out int indexInScene, out Hash128 typeCombinationHash);
@@ -67,27 +86,31 @@ namespace DotsPersistency.Hybrid
                 ushort archetypeIndexInContainer = hashToArchetypeIndexInContainer[typeCombinationHash];
                 
                 // Add components that an entity needs to be persistable: What to store & Where to store it
-                DstEntityManager.AddComponentData(e, new PersistencyArchetypeIndexInContainer()
+                dstManager.AddComponentData(e, new PersistencyArchetypeIndexInContainer()
                 {
                     Index = archetypeIndexInContainer
                 });
-                DstEntityManager.AddComponentData(e, new PersistenceState()
+                dstManager.AddComponentData(e, new PersistenceState()
                 {
                     ArrayIndex = indexInScene
                 });
-                DstEntityManager.AddSharedComponentData(e, new PersistableTypeCombinationHash()
+                dstManager.AddSharedComponentData(e, new PersistableTypeCombinationHash()
                 {
                     Value = typeCombinationHash
                 });
-                DstEntityManager.AddSharedComponentData(e, new PersistencyContainerTag()
+                dstManager.AddSharedComponentData(e, new PersistencyContainerTag()
                 {
-                    DataIdentifier = sceneGUID
+                    DataIdentifier = containerGUID
                 });
 
                 blobCreationInfo[archetypeIndexInContainer].AmountEntities += 1;
-            });
+            }
             
-            if (sceneGUID == default) // there was nothing converted
+            // Create the entity that contains all the info the PersistentSceneSystem needs for initializing a loaded scene
+            Entity scenePersistencyInfoEntity = settingsAndEntity.Item2;
+            dstManager.SetName(scenePersistencyInfoEntity, nameof(ScenePersistencyInfoRef));
+            
+            if (blobCreationInfo.Count == 0) // there was nothing converted
             {
                 return;
             }
@@ -95,10 +118,6 @@ namespace DotsPersistency.Hybrid
             List<PersistableTypeHandle> allUniqueTypeHandlesSorted = allUniqueTypeHandles.ToList();
             allUniqueTypeHandlesSorted.Sort((left, right) => left.Handle.CompareTo(right.Handle));
 
-            // Create the entity that contains all the info the PersistentSceneSystem needs for initializing a loaded scene
-            Entity scenePersistencyInfoEntity = GetPrimaryEntity(settings);
-            DstEntityManager.SetName(scenePersistencyInfoEntity, nameof(ScenePersistencyInfoRef));
-            
             ScenePersistencyInfoRef scenePersistencyInfoRef = new ScenePersistencyInfoRef();
             using (BlobBuilder blobBuilder = new BlobBuilder(Allocator.Temp))
             {
@@ -128,10 +147,10 @@ namespace DotsPersistency.Hybrid
                 scenePersistencyInfoRef.InfoRef = blobBuilder.CreateBlobAssetReference<ScenePersistencyInfo>(Allocator.Persistent);
             }
             
-            DstEntityManager.AddComponentData(scenePersistencyInfoEntity, scenePersistencyInfoRef);
-            DstEntityManager.AddSharedComponentData(scenePersistencyInfoEntity, new PersistencyContainerTag()
+            dstManager.AddComponentData(scenePersistencyInfoEntity, scenePersistencyInfoRef);
+            dstManager.AddSharedComponentData(scenePersistencyInfoEntity, new PersistencyContainerTag()
             {
-                DataIdentifier = sceneGUID
+                DataIdentifier = containerGUID
             });
 
             if (settings.VerboseConversionLog)
