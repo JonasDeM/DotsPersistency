@@ -6,8 +6,6 @@ using Debug = UnityEngine.Debug;
 
 namespace DotsPersistency
 {
-    // All the work this system does could theoretically just happen during conversion.
-    // But that would make it so every little change (code & game object hierarchy) would need to trigger a reconvert & that doesn't scale very well.
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateAfter(typeof(SceneSystemGroup))]
     [UpdateBefore(typeof(BeginFramePersistencySystem))]
@@ -241,5 +239,12 @@ namespace DotsPersistency
         {
             PersistentDataStorage.Dispose();
         }
+        
+#if UNITY_INCLUDE_TESTS
+        internal void ReplaceSettings(PersistencySettings settings)
+        {
+            PersistencySettings = settings;
+        }
+#endif
     }
 }

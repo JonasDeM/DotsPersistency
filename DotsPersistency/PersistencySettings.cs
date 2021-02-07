@@ -1,13 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Mathematics;
-using Unity.Transforms;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -153,7 +149,7 @@ namespace DotsPersistency
             return settings;
         }
         
-        private void OnEnable()
+        internal void OnEnable()
         {
             if (!_initialized)
             {
@@ -161,7 +157,7 @@ namespace DotsPersistency
             }
         }
 
-        private void OnDisable()
+        internal void OnDisable()
         {
             if (_initialized)
             {

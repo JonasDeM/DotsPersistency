@@ -21,7 +21,7 @@ namespace DotsPersistency
         {
             base.OnCreate();
             
-            InitializeReadOnly();
+            InitializeReadOnly(PersistencySettings.Get());
             _ecbSystem = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
             _containerSystem = World.GetOrCreateSystem<PersistentSceneSystem>();
 

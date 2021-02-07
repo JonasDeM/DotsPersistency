@@ -17,9 +17,9 @@ namespace DotsPersistency
         protected PersistencySettings PersistencySettings;
         protected EntityQuery PersistableEntitiesQuery;
         
-        protected void InitializeReadOnly()
+        protected void InitializeReadOnly(PersistencySettings settings)
         {
-            PersistencySettings = PersistencySettings.Get();
+            PersistencySettings = settings;
             if (PersistencySettings == null)
             {
                 Enabled = false;
@@ -38,9 +38,9 @@ namespace DotsPersistency
             }
         }
         
-        protected void InitializeReadWrite()
+        protected void InitializeReadWrite(PersistencySettings settings)
         {
-            PersistencySettings = PersistencySettings.Get();
+            PersistencySettings = settings;
             if (PersistencySettings == null)
             {
                 Enabled = false;
@@ -411,5 +411,12 @@ namespace DotsPersistency
                 return obj.GetHashCode() * ((int)obj.AccessModeType + 11);
             }
         }
+        
+#if UNITY_INCLUDE_TESTS
+        internal void ReplaceSettings(PersistencySettings settings)
+        {
+            InitializeReadWrite(settings);
+        }
+#endif
     }
 }

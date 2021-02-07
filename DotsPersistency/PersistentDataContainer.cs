@@ -77,6 +77,17 @@ namespace DotsPersistency
             return copy;
         }
 
+        public int CalculateTotalAmountEntities()
+        {
+            int total = 0;
+            for (int i = 0; i < _persistenceArchetypesDataLayouts.Length; i++)
+            {
+                total += _persistenceArchetypesDataLayouts[i].Amount;
+            }
+
+            return total;
+        }
+
         public void Dispose()
         {
             if (_data.IsCreated)

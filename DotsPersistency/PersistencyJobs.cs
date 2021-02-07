@@ -287,7 +287,7 @@ namespace DotsPersistency
             for (int i = 0; i < persistenceStateArray.Length; i++)
             {
                 PersistenceState persistenceState = persistenceStateArray[i];
-                Debug.Assert(persistenceState.ArrayIndex < inputData.Length/sizePerEntity);
+                Debug.Assert(persistenceState.ArrayIndex < inputData.Length / sizePerEntity);
                 PersistenceMetaData* inputMetaDataPtr = (PersistenceMetaData*)((byte*) inputData.GetUnsafeReadOnlyPtr() + persistenceState.ArrayIndex * sizePerEntity);
                 void* inputDataBytePtr = inputMetaDataPtr + 1; // + 1 because it's a PersistenceMetaData pointer
 

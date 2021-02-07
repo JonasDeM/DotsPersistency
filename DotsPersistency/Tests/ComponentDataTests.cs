@@ -417,7 +417,7 @@ namespace DotsPersistency.Tests
             {
                 return new EcsPersistingTestData()
                 {
-                    data = new EcsTestData(data.value * data.value * data.value)
+                    data = new EcsTestData(data.Value * data.Value * data.Value)
                 };
             }
         }
@@ -463,7 +463,7 @@ namespace DotsPersistency.Tests
             {
                 return new EcsPersistingTestData5()
                 {
-                    data = new EcsTestData5(data.value0 * data.value0)
+                    data = new EcsTestData5(data.Value0 * data.Value0)
                 };
             }
         }

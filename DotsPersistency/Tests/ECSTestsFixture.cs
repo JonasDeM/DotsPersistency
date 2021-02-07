@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Entities;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace DotsPersistency.Tests
 {
@@ -12,8 +14,6 @@ namespace DotsPersistency.Tests
         protected World World;
         protected EntityManager m_Manager;
         protected EntityManager.EntityManagerDebug m_ManagerDebug;
-
-        protected int StressTestEntityCount = 1000;
 
         [SetUp]
         public virtual void Setup()
@@ -45,6 +45,11 @@ namespace DotsPersistency.Tests
                 m_PreviousWorld = null;
                 m_Manager = default;
             }
+
+            foreach (var rootGameObject in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                Object.DestroyImmediate(rootGameObject);
+            }
         }
         
         class EntityForEachSystem : ComponentSystem
@@ -57,49 +62,44 @@ namespace DotsPersistency.Tests
             }
         }
         protected EntityQueryBuilder Entities => World.DefaultGameObjectInjectionWorld.GetOrCreateSystem<EntityForEachSystem>().GetQueryBuilder();
-
-        protected PersistencySettings CreateSettings(List<Type> types)
-        {
-            var retVal = ScriptableObject.CreateInstance<PersistencySettings>();
-            foreach (var type in types)
-            {
-                retVal.AddPersistableTypeInEditor(type.FullName);
-            }
-
-            return retVal;
-        }
     }
     
     public struct EcsTestData : IComponentData
     {
-        public int value;
+        public int Value;
         
         public EcsTestData(int value)
         {
-            this.value = value;
+            this.Value = value;
         }
     }
     public struct EcsTestFloatData2 : IComponentData
     {
         public float Value0;
         public float Value1;
+        
+        public EcsTestFloatData2(float value)
+        {
+            this.Value0 = value;
+            this.Value1 = value;
+        }
     }
     public struct EcsTestData5 : IComponentData
     {
         public EcsTestData5(int value)
         {
-            value0 = value;
-            value1 = value;
-            value2 = value;
-            value3 = value;
-            value4 = value;
+            Value0 = value;
+            Value1 = value;
+            Value2 = value;
+            Value3 = value;
+            Value4 = value;
         }
         
-        public int value0;
-        public int value1;
-        public int value2;
-        public int value3;
-        public int value4;
+        public int Value0;
+        public int Value1;
+        public int Value2;
+        public int Value3;
+        public int Value4;
     }
     
     

@@ -22,7 +22,7 @@ namespace DotsPersistency
         protected override void OnCreate()
         {
             base.OnCreate();
-            InitializeReadWrite();
+            InitializeReadWrite(PersistencySettings.Get());
             _applyRequests = new List<PersistentDataContainer>(8);
             _ecbSystem = World.GetOrCreateSystem<EndInitializationEntityCommandBufferSystem>();
             _initialStatePersistRequests = new List<PersistentDataContainer>(8);
