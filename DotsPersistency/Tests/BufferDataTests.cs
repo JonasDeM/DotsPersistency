@@ -1,7 +1,6 @@
 ﻿// Author: Jonas De Maeseneer
 
 using System;
-using System.Linq;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -50,8 +49,7 @@ namespace DotsPersistency.Tests
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array1Data,
-                BufferTypeHandle = m_Manager.GetDynamicBufferTypeHandle(typeof(PersistentDynamicBufferData1)),
-                ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData1>().ElementSize,
+                BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData1)),
                 MaxElements = maxElements
             }.Schedule(query1);
             
@@ -59,8 +57,7 @@ namespace DotsPersistency.Tests
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array2Data,
-                BufferTypeHandle = m_Manager.GetDynamicBufferTypeHandle(typeof(PersistentDynamicBufferData2)),
-                ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData2>().ElementSize,
+                BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData2)),
                 MaxElements = maxElements
             }.Schedule(query2);
             
@@ -68,8 +65,7 @@ namespace DotsPersistency.Tests
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 OutputData = array3Data,
-                BufferTypeHandle = m_Manager.GetDynamicBufferTypeHandle(typeof(PersistentDynamicBufferData3)),
-                ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData3>().ElementSize,
+                BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData3)),
                 MaxElements = maxElements
             }.Schedule(query3);
             
@@ -227,8 +223,7 @@ namespace DotsPersistency.Tests
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array1Data,
-                BufferTypeHandle = m_Manager.GetDynamicBufferTypeHandle(typeof(PersistentDynamicBufferData1)),
-                ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData1>().ElementSize,
+                BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData1)),
                 MaxElements = maxElements
             }.Schedule(query1);
             
@@ -236,8 +231,7 @@ namespace DotsPersistency.Tests
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array2Data,
-                BufferTypeHandle = m_Manager.GetDynamicBufferTypeHandle(typeof(PersistentDynamicBufferData2)),
-                ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData2>().ElementSize,
+                BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData2)),
                 MaxElements = maxElements
             }.Schedule(query2);
             
@@ -245,8 +239,7 @@ namespace DotsPersistency.Tests
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                 InputData = array3Data,
-                BufferTypeHandle = m_Manager.GetDynamicBufferTypeHandle(typeof(PersistentDynamicBufferData3)),
-                ElementSize = TypeManager.GetTypeInfo<PersistentDynamicBufferData3>().ElementSize,
+                BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData3)),
                 MaxElements = maxElements
             }.Schedule(query3);
             

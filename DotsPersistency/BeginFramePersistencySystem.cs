@@ -80,7 +80,7 @@ namespace DotsPersistency
             for (var i = 0; i < _applyRequests.Count; i++)
             {
                 int index = applyStartIndex + i;
-                jobHandles[index] = ScheduleApply(inputDependencies, _applyRequests[index], _ecbSystem, entityTypeHandle, indexTypeHandle, archetypeIndexTypeHandle);
+                jobHandles[index] = ScheduleApply(inputDependencies, _applyRequests[i], _ecbSystem, entityTypeHandle, indexTypeHandle, archetypeIndexTypeHandle);
             }
             _ecbSystem.AddJobHandleForProducer(JobHandle.CombineDependencies(jobHandles.Slice(applyStartIndex)));
             

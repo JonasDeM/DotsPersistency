@@ -1,4 +1,5 @@
-﻿using System;
+﻿// Author: Jonas De Maeseneer
+
 using Unity.Entities;
 
 namespace DotsPersistency
@@ -19,7 +20,6 @@ namespace DotsPersistency
         public enum Stage : byte
         {
             InitialStage = 0,
-            WaitingForContainer,
             WaitingForSceneLoad,
             Complete
         }

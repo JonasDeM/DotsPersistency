@@ -1,5 +1,6 @@
 {
     "name": "io.jonasdem.dotspersistency.hybrid",
+    "rootNamespace": "",
     "references": [
         "GUID:42697df707fc47a4aa81e8cf52f99bfe",
         "GUID:e63a9f9b38516b1469a5055028a5560d",
@@ -15,7 +16,7 @@
     "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
-    "autoReferenced": false,
+    "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
     "noEngineReferences": false

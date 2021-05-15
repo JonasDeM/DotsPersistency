@@ -108,7 +108,9 @@ namespace DotsPersistency.Hybrid
             
             // Create the entity that contains all the info the PersistentSceneSystem needs for initializing a loaded scene
             Entity scenePersistencyInfoEntity = settingsAndEntity.Item2;
+#if UNITY_EDITOR
             dstManager.SetName(scenePersistencyInfoEntity, nameof(ScenePersistencyInfoRef));
+#endif
             
             if (blobCreationInfo.Count == 0) // there was nothing converted
             {
@@ -164,7 +166,7 @@ namespace DotsPersistency.Hybrid
 #if UNITY_EDITOR
             return new Hash128(AssetDatabase.AssetPathToGUID(gameObject.scene.path));
 #else
-            throw new NotSupportedException("Runtime conversion is not supported!");
+            throw new System.NotSupportedException("Runtime conversion is not supported!");
 #endif
         }
         

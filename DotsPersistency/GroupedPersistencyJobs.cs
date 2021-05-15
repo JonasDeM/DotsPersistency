@@ -1,4 +1,6 @@
-﻿using System;
+﻿// Author: Jonas De Maeseneer
+
+using System;
 using System.Diagnostics;
 using DotsPersistency.Containers;
 using Unity.Burst;
@@ -20,8 +22,6 @@ namespace DotsPersistency
         
         [DeallocateOnJobCompletion]
         [ReadOnly] public ComponentTypeHandleArray DynamicComponentTypeHandles;
-        [DeallocateOnJobCompletion]
-        [ReadOnly] public BufferTypeHandleArray DynamicBufferTypeHandles;
 
         [ReadOnly] public PersistencySettings.TypeIndexLookup TypeIndexLookup;
         
@@ -49,23 +49,21 @@ namespace DotsPersistency
 
                 // Grab read-only containers
                 var inputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
+                
+                bool found = DynamicComponentTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicComponentTypeHandle typeHandle);
+                Debug.Assert(found);
 
                 if (typeInfo.IsBuffer)
                 {
-                    bool found = DynamicBufferTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicBufferTypeHandle typeHandle);
-                    Debug.Assert(found);
                     // Debug.Assert(batchInChunk.Has(typeHandle)); 
                     if (batchInChunk.Has(typeHandle))
                     {
-                        var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(typeHandle);
-                        CopyByteArrayToBufferElements.Execute(inputData, typeInfo.ElementSize, typeInfo.MaxElements, untypedBufferAccessor, persistenceStateArray);
+                        var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(ref typeHandle);
+                        CopyByteArrayToBufferElements.Execute(inputData, typeInfo.MaxElements, untypedBufferAccessor, persistenceStateArray);
                     }
                 }
                 else // if ComponentData
                 {
-                    bool found = DynamicComponentTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicComponentTypeHandle typeHandle);
-                    Debug.Assert(found);
-                    
                     if (batchInChunk.Has(typeHandle))
                     {
                         if (typeInfo.ElementSize > 0)
@@ -115,8 +113,6 @@ namespace DotsPersistency
         
         [DeallocateOnJobCompletion]
         [ReadOnly] public ComponentTypeHandleArray DynamicComponentTypeHandles;
-        [DeallocateOnJobCompletion]
-        [ReadOnly] public BufferTypeHandleArray DynamicBufferTypeHandles;
 
         [ReadOnly] public PersistencySettings.TypeIndexLookup TypeIndexLookup;
 
@@ -142,22 +138,16 @@ namespace DotsPersistency
                 // Grab containers
                 var outputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
                 
+                bool found = DynamicComponentTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicComponentTypeHandle typeHandle);
+                Debug.Assert(found);
+                
                 if (typeInfo.IsBuffer)
                 {
-                    bool found = DynamicBufferTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicBufferTypeHandle typeHandle);
-                    Debug.Assert(found);
-                    // Debug.Assert(batchInChunk.Has(typeHandle)); 
-                    if (batchInChunk.Has(typeHandle))
-                    {
-                        var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(typeHandle);
-                        CopyBufferElementsToByteArray.Execute(outputData, typeInfo.ElementSize, typeInfo.MaxElements, untypedBufferAccessor, persistenceStateArray);
-                    }
+                    var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(ref typeHandle);
+                    CopyBufferElementsToByteArray.Execute(outputData, typeInfo.MaxElements, untypedBufferAccessor, persistenceStateArray);
                 }
                 else
                 {
-                    bool found = DynamicComponentTypeHandles.GetByTypeIndex(runtimeType.TypeIndex, out DynamicComponentTypeHandle typeHandle);
-                    Debug.Assert(found);
-
                     if (batchInChunk.Has(typeHandle))
                     {
                         if (typeInfo.ElementSize > 0)
@@ -167,8 +157,12 @@ namespace DotsPersistency
                         }
                         else
                         {
-                            UpdateMetaDataForTagComponent.Execute(outputData, persistenceStateArray);
+                            UpdateMetaDataForComponent.Execute(outputData, persistenceStateArray, 1);
                         }
+                    }
+                    else
+                    {
+                        UpdateMetaDataForComponent.Execute(outputData, persistenceStateArray, 0);
                     }
                 }
             }

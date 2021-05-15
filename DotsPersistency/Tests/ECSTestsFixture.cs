@@ -1,5 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿// Author: Jonas De Maeseneer
+
 using NUnit.Framework;
 using Unity.Entities;
 using UnityEngine;
@@ -22,6 +22,8 @@ namespace DotsPersistency.Tests
             World = World.DefaultGameObjectInjectionWorld = new World("Test World");
             m_Manager = World.EntityManager;
             m_ManagerDebug = new EntityManager.EntityManagerDebug(m_Manager);
+
+            World.GetOrCreateSystem<EntityForEachSystem>();
         }
 
         [TearDown]
@@ -52,6 +54,7 @@ namespace DotsPersistency.Tests
             }
         }
         
+        [DisableAutoCreation]
         class EntityForEachSystem : ComponentSystem
         {
             protected override void OnUpdate() {  }
@@ -62,7 +65,24 @@ namespace DotsPersistency.Tests
             }
         }
         protected EntityQueryBuilder Entities => World.DefaultGameObjectInjectionWorld.GetOrCreateSystem<EntityForEachSystem>().GetQueryBuilder();
+        
+        protected static PersistencySettings CreateTestSettings()
+        {
+            PersistencySettings settings = ScriptableObject.CreateInstance<PersistencySettings>();
+            settings.AddPersistableTypeInEditor(typeof(EcsTestData).FullName);
+            settings.AddPersistableTypeInEditor(typeof(EcsTestFloatData2).FullName);
+            settings.AddPersistableTypeInEditor(typeof(EcsTestData5).FullName);
+            settings.AddPersistableTypeInEditor(typeof(DynamicBufferData1).FullName);
+            settings.AddPersistableTypeInEditor(typeof(DynamicBufferData2).FullName);
+            settings.AddPersistableTypeInEditor(typeof(DynamicBufferData3).FullName);
+            settings.AddPersistableTypeInEditor(typeof(EmptyEcsTestData).FullName);
+            // Reset it so the new types are initialized
+            settings.OnDisable();
+            settings.OnEnable();
+            return settings;
+        }
     }
+    
     
     public struct EcsTestData : IComponentData
     {

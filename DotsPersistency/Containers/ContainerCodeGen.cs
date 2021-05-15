@@ -1,5 +1,6 @@
-﻿using System.IO;
-using UnityEditor;
+﻿// Author: Jonas De Maeseneer
+
+using System.IO;
 
 namespace DotsPersistency.Containers
 {

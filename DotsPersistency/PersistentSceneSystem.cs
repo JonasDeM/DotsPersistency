@@ -1,4 +1,7 @@
-﻿using Unity.Collections;
+﻿// Author: Jonas De Maeseneer
+
+using System;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Scenes;
@@ -11,9 +14,9 @@ namespace DotsPersistency
     [UpdateBefore(typeof(BeginFramePersistencySystem))]
     public class PersistentSceneSystem : SystemBase
     {
-        private EntityQuery _initEntitiesQuery;
         private EntityQuery _sceneSectionLoadedCheckQuery;
         private EntityQuery _scenePersistencyInfoQuery;
+        private EntityQuery _resizeContainerDependencyQuery;
         
         public PersistentDataStorage PersistentDataStorage { get; private set; }
         protected PersistencySettings PersistencySettings;
@@ -33,14 +36,10 @@ namespace DotsPersistency
             
             _beginFrameSystem = World.GetOrCreateSystem<BeginFramePersistencySystem>();
             _ecbSystem = World.GetOrCreateSystem<EndInitializationEntityCommandBufferSystem>();
-
-            _initEntitiesQuery = GetEntityQuery(new EntityQueryDesc(){ 
-                All = new [] {ComponentType.ReadOnly<PersistableTypeCombinationHash>(), ComponentType.ReadOnly<PersistencyContainerTag>()},
-                None = new []{ ComponentType.ReadOnly<PersistencyArchetypeDataLayout>() },
-                Options = EntityQueryOptions.IncludeDisabled
-            });
+            
             _scenePersistencyInfoQuery = GetEntityQuery(ComponentType.ReadOnly<ScenePersistencyInfoRef>(), ComponentType.ReadOnly<PersistencyContainerTag>());
             _sceneSectionLoadedCheckQuery = GetEntityQuery(ComponentType.ReadOnly<SceneSection>());
+            _resizeContainerDependencyQuery = GetEntityQuery(ComponentType.ReadOnly<PersistenceState>());
             RequireForUpdate(GetEntityQuery(ComponentType.ReadOnly<RequestPersistentSceneSectionLoaded>(), ComponentType.ReadOnly<SceneSectionData>(), ComponentType.Exclude<PersistentSceneSectionLoadComplete>()));
         }
 
@@ -53,27 +52,13 @@ namespace DotsPersistency
                 return;
             }
             
-            EntityCommandBuffer immediateStructuralChanges = new EntityCommandBuffer(Allocator.TempJob, PlaybackPolicy.SinglePlayback);
-
             for (int i = 0; i < sceneSectionsToInit.Length; i++)
             {
-                InitSceneSection(sceneSectionsToInit[i], immediateStructuralChanges);
+                InitSceneSection(sceneSectionsToInit[i]);
             }
-            
-            // Clean up any init-only data
-            _scenePersistencyInfoQuery.ResetFilter();
-            _initEntitiesQuery.ResetFilter();
-            immediateStructuralChanges.DestroyEntity(_scenePersistencyInfoQuery);
-            immediateStructuralChanges.RemoveComponent<PersistableTypeCombinationHash>(_initEntitiesQuery);
-            
-            // Do the structural changes immediately since BeginFramePersistencySystem needs to to the initial persist
-            immediateStructuralChanges.Playback(EntityManager);
-            
-            immediateStructuralChanges.Dispose();
-            sceneSectionsToInit.Dispose();
         }
 
-        public void UpdateSceneLoading(out NativeList<SceneSection> sceneSectionsToInit)
+        private void UpdateSceneLoading(out NativeList<SceneSection> sceneSectionsToInit)
         {
             NativeList<SceneSection> completeSceneSections = new NativeList<SceneSection>(4, Allocator.Temp);
             
@@ -94,11 +79,6 @@ namespace DotsPersistency
                 if (requestInfo.CurrentLoadingStage == RequestPersistentSceneSectionLoaded.Stage.InitialStage)
                 {
                     ecb.AddComponent<PersistentSceneSection>(entity);
-                    requestInfo.CurrentLoadingStage = RequestPersistentSceneSectionLoaded.Stage.WaitingForContainer;
-                }
-                if (requestInfo.CurrentLoadingStage == RequestPersistentSceneSectionLoaded.Stage.WaitingForContainer && PersistentDataStorage.RequireContainer(sceneSection.SceneGUID))
-                {
-                    // After the container is available actually start loading the scene
                     ecb.AddComponent(entity, new RequestSceneLoaded()
                     {
                         LoadFlags = requestInfo.LoadFlags
@@ -122,27 +102,23 @@ namespace DotsPersistency
             sceneSectionsToInit = completeSceneSections;
         }
 
-        private unsafe void InitSceneSection(SceneSection sceneSection, EntityCommandBuffer ecb)
+        private unsafe void InitSceneSection(SceneSection sceneSection)
         {
             Hash128 containerIdentifier = sceneSection.SceneGUID;
             PersistencyContainerTag containerTag = new PersistencyContainerTag() {DataIdentifier = containerIdentifier};
             
             if (PersistentDataStorage.IsInitialized(containerIdentifier))
             {
-                PersistentDataContainer latestState = PersistentDataStorage.GetLatestWrittenState(containerIdentifier, out bool isInitial);
-                for (int i = 0; i < latestState.DataLayoutCount; i++)
-                {
-                    PersistencyArchetypeDataLayout dataLayout = latestState.GetDataLayoutAtIndex(i);
-                    _initEntitiesQuery.SetSharedComponentFilter(new PersistableTypeCombinationHash {Value = dataLayout.PersistableTypeHandleCombinationHash}, containerTag);
-                    
-                    ecb.AddSharedComponent(_initEntitiesQuery, dataLayout);
-                }
-
+                PersistentDataContainer latestState = PersistentDataStorage.GetReadContainerForLatestWriteIndex(containerIdentifier, out bool isInitial);
                 _beginFrameSystem.RequestApply(latestState);
             }
             else
             {
                 _scenePersistencyInfoQuery.SetSharedComponentFilter(containerTag);
+                if (_scenePersistencyInfoQuery.CalculateEntityCount() != 1)
+                {
+                    return;
+                }
                 var scenePersistencyInfoRef = _scenePersistencyInfoQuery.GetSingleton<ScenePersistencyInfoRef>();
                 ref ScenePersistencyInfo sceneInfo = ref scenePersistencyInfoRef.InfoRef.Value; 
                 
@@ -156,9 +132,7 @@ namespace DotsPersistency
                     {
                         Value = persistencyArchetype.PersistableTypeHandleCombinationHash
                     };
-                    
-                    _initEntitiesQuery.SetSharedComponentFilter(hashFilter, containerTag);
-                    
+
                     var dataLayout = new PersistencyArchetypeDataLayout()
                     {
                         Amount = persistencyArchetype.AmountEntities,
@@ -171,17 +145,6 @@ namespace DotsPersistency
                     offset += persistencyArchetype.AmountEntities * sizePerEntity;
 
                     dataLayouts[i] = dataLayout;
-                    ecb.AddSharedComponent(_initEntitiesQuery, dataLayout);
-                }
-
-                // This also implicitly calculates the amount of component data types
-                int amountUniqueBufferTypes = 0;
-                for (int i = 0; i < sceneInfo.AllUniqueTypeHandles.Length; i++)
-                {
-                    if (PersistencySettings.IsBufferType(sceneInfo.AllUniqueTypeHandles[i]))
-                    {
-                        amountUniqueBufferTypes += 1;
-                    }
                 }
 
                 // BlobData is disposed if the owning entity is destroyed, we need this data even if the scene is unloaded
@@ -189,12 +152,32 @@ namespace DotsPersistency
                 UnsafeUtility.MemCpy(allUniqueTypeHandles.GetUnsafePtr(), sceneInfo.AllUniqueTypeHandles.GetUnsafePtr(), allUniqueTypeHandles.Length * sizeof(PersistableTypeHandle));
                 
                 // this function takes ownership over the dataLayouts array & allUniqueTypeHandles array
-                PersistentDataContainer initialStateContainer = PersistentDataStorage.InitializeScene(containerIdentifier, dataLayouts, allUniqueTypeHandles, amountUniqueBufferTypes);
+                PersistentDataStorage.InitializeSceneContainer(containerIdentifier, dataLayouts, allUniqueTypeHandles,
+                    out PersistentDataContainer initialStateContainer, out PersistentDataContainer containerToApply);
                 _beginFrameSystem.RequestInitialStatePersist(initialStateContainer);
+                if (containerToApply.IsCreated)
+                {
+                    // containerToApply only exists if it was already added as uninitialized raw data beforehand (e.g. read from disk)
+                    _beginFrameSystem.RequestApply(containerToApply);
+                }
             }
         }
         
-        public void RequestRollback(int storageIndex)
+        // This method takes ownership of the typeHandles NativeArray
+        public void InitializePool(Entity prefabEntity, int amount, Hash128 identifier, NativeArray<PersistableTypeHandle> typeHandles)
+        {
+            Debug.Assert(amount > 0);
+            PersistentDataStorage.InitializePool(prefabEntity, identifier, typeHandles, _beginFrameSystem);
+            PersistentDataStorage.ChangeEntityCapacity(identifier, amount);
+        }
+        
+        public void InstantChangePoolCapacity(Hash128 identifier, int minSize)
+        {
+            _resizeContainerDependencyQuery.CompleteDependency();
+            PersistentDataStorage.ChangeEntityCapacity(identifier, minSize);
+        }
+
+        public void RequestApplyAllLoadedScenes(int storageIndex)
         {
             PersistentDataStorage.ToIndex(storageIndex);
             Entities.ForEach((in SceneReference sceneReference, in DynamicBuffer<ResolvedSectionEntity> sceneSections) =>
@@ -211,7 +194,7 @@ namespace DotsPersistency
             }).WithoutBurst().Run();
         }
         
-        public void RequestFullReset()
+        public void RequestApplyInitialToAllLoadedScenes()
         {
             PersistentDataStorage.ToIndex(0);
             
@@ -222,7 +205,7 @@ namespace DotsPersistency
                     Entity sceneSectionEntity = sceneSections[i].SectionEntity;
                     if (HasComponent<PersistentSceneSectionLoadComplete>(sceneSectionEntity))
                     {
-                        _beginFrameSystem.RequestApply(PersistentDataStorage.GetInitialState(sceneReference.SceneGUID));
+                        _beginFrameSystem.RequestApply(PersistentDataStorage.GetInitialStateReadContainer(sceneReference.SceneGUID));
                         return;
                     }
                 }

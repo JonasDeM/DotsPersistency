@@ -2,7 +2,6 @@
 
 using System.Runtime.CompilerServices;
 using System;
-using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
@@ -11,13 +10,12 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency
 {
-    // A persisting entity needs this component
-    // It holds which data it needs to persist & where it needs to write it to
-    public struct PersistencyArchetypeDataLayout : ISharedComponentData
+    // This structure has all the details needed to write/read from a sub-array of a large contiguous array
+    public struct PersistencyArchetypeDataLayout 
     {
         public BlobAssetReference<BlobArray<TypeInfo>> PersistedTypeInfoArrayRef;
         public int Amount;
-        public int Offset; // Byte Offset in the Byte Array which contains all data for 1 SceneSection
+        public int Offset; // Byte Offset in the larger Byte Array
         public int SizePerEntity;
         public ushort ArchetypeIndexInContainer; // Index specifically for any container for this SceneSection
         public Hash128 PersistableTypeHandleCombinationHash;
@@ -28,31 +26,32 @@ namespace DotsPersistency
             public int ElementSize;
             public int MaxElements;
             public bool IsBuffer;
-            public int Offset; // Byte Offset in the Byte Sub Array which contains all data for a PersistenceArchetype in 1 SceneSection
+            public int Offset; // Byte Offset in the Byte Sub Array which contains all data for a PersistenceArchetype
+            public int SizePerEntityForThisType => (ElementSize * MaxElements) + PersistenceMetaData.SizeOfStruct;
         }
     }
     
-    // This component gets replaced by PersistencyArchetypeDataLayout on the first frame an entity is loaded
+    // PersistableTypeCombinationHash & PersistencyArchetypeIndexInContainer work together so we can grab the correct sub-array & dataLayout for a chunk
     [Serializable]
     public struct PersistableTypeCombinationHash : ISharedComponentData
     {
         public Hash128 Value;
     }
+    public struct PersistencyArchetypeIndexInContainer : IComponentData
+    {
+        public ushort Index;
+    }
     
+    // This component makes it so we can iterate the right chunks for a container
     [Serializable]
     public struct PersistencyContainerTag : ISharedComponentData
     {
         public Hash128 DataIdentifier;
     }
 
-    public struct PersistencyArchetypeIndexInContainer : IComponentData
-    {
-        public ushort Index;
-    }
-    
     public struct PersistencyArchetype
     {
-        public BlobArray<PersistableTypeHandle> PersistableTypeHandles; // could be a blob array
+        public BlobArray<PersistableTypeHandle> PersistableTypeHandles;
         public Hash128 PersistableTypeHandleCombinationHash;
         
         // This is the amount of entities with this PersistencyArchetype
@@ -65,14 +64,14 @@ namespace DotsPersistency
         public BlobArray<PersistencyArchetype> PersistencyArchetypes;
     }
 
+    // Each subScene with persisting entities will have a singleton entity with this component.
+    // It contains info to quickly construct PersistencyArchetypeDataLayout at runtime
     public struct ScenePersistencyInfoRef : IComponentData
     {
         public BlobAssetReference<ScenePersistencyInfo> InfoRef;
     }
     
-    // A persisting entity needs this component
-    // It holds the index into the sub array that holds the persisted data
-    // Entities their data will reside in the same arrays if they have the same SharedComponentData for SceneSection & PersistenceArchetypeDataLayout
+    // This component holds the index into the sub array 
     public struct PersistenceState : IComponentData, IEquatable<PersistenceState>
     {
         public int ArrayIndex;

@@ -186,31 +186,72 @@ namespace DotsPersistency.Tests
             int amount1 = query1.CalculateEntityCount();
             int amount2 = query2.CalculateEntityCount();
             int amount3 = query3.CalculateEntityCount();
+            
+            Entities.WithAll<PersistenceState>().ForEach((Entity entity) =>
+            {
+                int index = m_Manager.GetComponentData<PersistenceState>(entity).ArrayIndex;
+                if (index % 2 == 1)
+                {
+                    if (m_Manager.HasComponent<EcsPersistingTestData>(entity))
+                    {
+                        m_Manager.RemoveComponent<EcsPersistingTestData>(entity);
+                    }
+                    else if (m_Manager.HasComponent<EcsPersistingFloatTestData2>(entity))
+                    {
+                        m_Manager.RemoveComponent<EcsPersistingFloatTestData2>(entity);
+                    }
+                    else if (m_Manager.HasComponent<EcsPersistingTestData5>(entity))
+                    {
+                        m_Manager.RemoveComponent<EcsPersistingTestData5>(entity);
+                    }
+                }
+            });
 
             // Action
-            new CopyByteArrayToComponentData()
+            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
             {
-                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
-                TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
-                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                InputData = array1IntData
-            }.Run(query1);
-            
-            new CopyByteArrayToComponentData()
-            {
-                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
-                TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
-                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                InputData = array2FloatData
-            }.Run(query2);
+                new CopyByteArrayToComponentData()
+                {
+                    ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
+                    TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
+                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
+                    InputData = array1IntData,
+                    ComponentType = typeof(EcsPersistingTestData),
+                    EntityType = m_Manager.GetEntityTypeHandle(),
+                    Ecb = cmds.AsParallelWriter()
+                }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestData), typeof(PersistenceState)));
+                cmds.Playback(m_Manager);
+            }
 
-            new CopyByteArrayToComponentData()
+            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
             {
-                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
-                TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
-                PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                InputData = array5IntData
-            }.Run(query3);
+                new CopyByteArrayToComponentData()
+                {
+                    ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
+                    TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
+                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
+                    InputData = array2FloatData,
+                    ComponentType = typeof(EcsPersistingFloatTestData2),
+                    EntityType = m_Manager.GetEntityTypeHandle(),
+                    Ecb = cmds.AsParallelWriter()
+                }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestFloatData2), typeof(PersistenceState)));
+                cmds.Playback(m_Manager);
+            }
+
+            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
+            {
+                new CopyByteArrayToComponentData()
+                {
+                    ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
+                    TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
+                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
+                    InputData = array5IntData,
+                    ComponentType = typeof(EcsPersistingTestData5),
+                    EntityType = m_Manager.GetEntityTypeHandle(),
+                    Ecb = cmds.AsParallelWriter()
+                }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestData5), typeof(PersistenceState)));
+                cmds.Playback(m_Manager);
+            }
 
             // Check Results
             Entities.With(query1).ForEach(entity =>
@@ -233,69 +274,6 @@ namespace DotsPersistency.Tests
                 var originalData = new EcsPersistingTestData5() { data = m_Manager.GetComponentData<EcsTestData5>(entity)};
                 Assert.True(newData.Equals(originalData.Modified()), "CopyByteArrayToComponentData:: Restored data on entity is incorrect.");
             });
-            
-            // Preparation
-            Entities.WithAll<PersistenceState>().ForEach((Entity entity) =>
-            {
-                int index = m_Manager.GetComponentData<PersistenceState>(entity).ArrayIndex;
-                if (index % 2 == 1)
-                {
-                    if (m_Manager.HasComponent<EcsPersistingTestData>(entity))
-                    {
-                        m_Manager.RemoveComponent<EcsPersistingTestData>(entity);
-                    }
-                    else if (m_Manager.HasComponent<EcsPersistingFloatTestData2>(entity))
-                    {
-                        m_Manager.RemoveComponent<EcsPersistingFloatTestData2>(entity);
-                    }
-                    else if (m_Manager.HasComponent<EcsPersistingTestData5>(entity))
-                    {
-                        m_Manager.RemoveComponent<EcsPersistingTestData5>(entity);
-                    }
-                }
-            });
-
-            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
-            {
-                new AddMissingComponent()
-                {
-                    ComponentType = typeof(EcsPersistingTestData),
-                    TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
-                    EntityType = m_Manager.GetEntityTypeHandle(),
-                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                    InputData = array1IntData,
-                    Ecb = cmds.AsParallelWriter()
-                }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestData), typeof(PersistenceState)));
-                cmds.Playback(m_Manager);
-            }
-
-            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
-            {
-                new AddMissingComponent()
-                {
-                    ComponentType = typeof(EcsPersistingFloatTestData2),
-                    TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
-                    EntityType = m_Manager.GetEntityTypeHandle(),
-                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                    InputData = array2FloatData,
-                    Ecb = cmds.AsParallelWriter()
-                }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestFloatData2), typeof(PersistenceState)));
-                cmds.Playback(m_Manager);
-            }
-
-            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
-            {
-                new AddMissingComponent()
-                {
-                    ComponentType = typeof(EcsPersistingTestData5),
-                    TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
-                    EntityType = m_Manager.GetEntityTypeHandle(),
-                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                    InputData = array5IntData,
-                    Ecb = cmds.AsParallelWriter()
-                }.Run(m_Manager.CreateEntityQuery(typeof(EcsTestData5), typeof(PersistenceState)));
-                cmds.Playback(m_Manager);
-            }
 
             // Check Results
             Assert.AreEqual(amount1, query1.CalculateEntityCount(), "AddMissingComponents:: Not all missing components have not been restored");
@@ -340,15 +318,16 @@ namespace DotsPersistency.Tests
             m_Manager.SetComponentData(entity2, new PersistenceState {ArrayIndex = 1});
             m_Manager.SetComponentData(entity3, new PersistenceState {ArrayIndex = 2});
             
-            var query = m_Manager.CreateEntityQuery(typeof(EmptyEcsPersistingTestData), typeof(PersistenceState));
-            var excludeQuery = m_Manager.CreateEntityQuery(ComponentType.Exclude<EmptyEcsPersistingTestData>(), typeof(PersistenceState));
+            var query = m_Manager.CreateEntityQuery(typeof(PersistenceState));
             var data = new NativeArray<byte>(3 * PersistenceMetaData.SizeOfStruct, Allocator.TempJob);
 
             // Action
-            var readJob = new UpdateMetaDataForTagComponent()
+            var readJob = new CopyComponentDataToByteArray()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                OutputData = data
+                OutputData = data,
+                TypeSize = 0,
+                ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EmptyEcsPersistingTestData))
             }.Schedule(query);
             readJob.Complete();
 
@@ -357,31 +336,17 @@ namespace DotsPersistency.Tests
             
             using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
             {
-                var removeJob = new RemoveComponent()
-                {
-                    TypeToRemove = typeof(EmptyEcsPersistingTestData),
-                    TypeSize = TypeManager.GetTypeInfo<EmptyEcsPersistingTestData>().ElementSize,
-                    PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                    InputData = data,
-                    EntityType = m_Manager.GetEntityTypeHandle(),
-                    Ecb = cmds.AsParallelWriter()
-                }.Schedule(query);
-                removeJob.Complete();
-                cmds.Playback(m_Manager);
-            }
-            
-            using (EntityCommandBuffer cmds = new EntityCommandBuffer(Allocator.TempJob))
-            {
-                var addJob = new AddMissingComponent()
+                var removeJob = new CopyByteArrayToComponentData()
                 {
                     ComponentType = typeof(EmptyEcsPersistingTestData),
                     TypeSize = TypeManager.GetTypeInfo<EmptyEcsPersistingTestData>().ElementSize,
                     PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
                     InputData = data,
                     EntityType = m_Manager.GetEntityTypeHandle(),
-                    Ecb = cmds.AsParallelWriter()
-                }.Schedule(excludeQuery);
-                addJob.Complete();
+                    Ecb = cmds.AsParallelWriter(),
+                    ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EmptyEcsPersistingTestData))
+                }.Schedule(query);
+                removeJob.Complete();
                 cmds.Playback(m_Manager);
             }
             

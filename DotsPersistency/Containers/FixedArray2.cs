@@ -1,4 +1,6 @@
-﻿using System;
+﻿// Author: Jonas De Maeseneer
+
+using System;
 using System.Text;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;

@@ -1,4 +1,6 @@
-﻿using System;
+﻿// Author: Jonas De Maeseneer
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -33,22 +35,31 @@ namespace DotsPersistency
         internal bool VerboseConversionLog = false;
         
         private TypeIndexLookup _typeIndexLookup;
+        private NativeHashMap<int, PersistableTypeHandle> _typeIndexToHandle;
         private bool _initialized;
         
         private void Initialize()
         {
             var typeIndexArray = new NativeArray<int>(_allPersistableTypeInfos.Count, Allocator.Persistent);
+            _typeIndexToHandle = new NativeHashMap<int, PersistableTypeHandle>(_allPersistableTypeInfos.Count, Allocator.Persistent);
             for (int i = 0; i < _allPersistableTypeInfos.Count; i++)
             {
                 PersistableTypeInfo typeInfo = _allPersistableTypeInfos[i];
                 typeInfo.ValidityCheck();
-                typeIndexArray[i] = TypeManager.GetTypeIndexFromStableTypeHash(typeInfo.StableTypeHash);
+                int typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(typeInfo.StableTypeHash);
+                typeIndexArray[i] = typeIndex;
+                _typeIndexToHandle[typeIndex] = new PersistableTypeHandle {Handle = (ushort)(i+1)};
             }
             _typeIndexLookup = new TypeIndexLookup()
             {
                 TypeIndexArray = typeIndexArray
             };
             _initialized = true;
+        }
+        
+        public PersistableTypeHandle GetTypeHandleFromTypeIndex(int typeIndex)
+        {
+            return _typeIndexToHandle[typeIndex];
         }
 
         // fastest way to get the type index
@@ -81,7 +92,54 @@ namespace DotsPersistency
                 }
             }
             
-            throw new ArgumentException($"{fullTypeName} was not a persistable type.");
+            throw new ArgumentException($"{fullTypeName} was not registered as a persistable type.");
+        }
+        
+        internal Unity.Entities.Hash128 GetTypeHandleCombinationHash(NativeArray<PersistableTypeHandle> typeHandles)
+        {
+            ulong hash1 = 0;
+            ulong hash2 = 0;
+
+            for (int i = 0; i < typeHandles.Length; i++)
+            {
+                PersistableTypeHandle handle = typeHandles[i];
+                
+                unchecked
+                {
+                    if (i%2 == 0)
+                    {
+                        ulong hash = 17;
+                        hash = hash * 31 + hash1;
+                        hash = hash * 31 + (ulong)handle.Handle.GetHashCode();
+                        hash1 = hash;
+                    }
+                    else
+                    {
+                        ulong hash = 17;
+                        hash = hash * 31 + hash2;
+                        hash = hash * 31 + (ulong)handle.Handle.GetHashCode();
+                        hash2 = hash;
+                    }
+                }
+            }
+            return new UnityEngine.Hash128(hash1, hash2);
+        }
+        
+        internal Unity.Entities.Hash128 GetTypeHandleCombinationHash(List<string> fullTypeNames)
+        {
+            var typeHandles = new NativeList<PersistableTypeHandle>(fullTypeNames.Count, Allocator.Temp);
+            
+            foreach (var fullTypeName in fullTypeNames)
+            {
+                if (ContainsType(fullTypeName))
+                {
+                    typeHandles.Add(GetPersistableTypeHandleFromFullTypeName(fullTypeName));
+                }
+            }
+
+            var hash = GetTypeHandleCombinationHash(typeHandles);
+            typeHandles.Dispose();
+            return hash;
         }
         
         public bool ContainsType(string fullTypeName)
@@ -113,7 +171,7 @@ namespace DotsPersistency
                 return false;
             }
             
-            if (info.HasEntities)
+            if (info.EntityOffsetCount > 0)
             {
                 notSupportedReason = $"Persisting components with Entity References is not supported. Type: {ComponentType.FromTypeIndex(info.TypeIndex).ToString()}";
                 return false;
@@ -162,6 +220,7 @@ namespace DotsPersistency
             if (_initialized)
             {
                 _typeIndexLookup.Dispose();
+                _typeIndexToHandle.Dispose();
                 _initialized = false;
             }
         }

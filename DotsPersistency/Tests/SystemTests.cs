@@ -1,4 +1,6 @@
-﻿using System;
+﻿// Author: Jonas De Maeseneer
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DotsPersistency.Hybrid;
@@ -150,20 +152,16 @@ namespace DotsPersistency.Tests
                 Assert.True(persistentSceneSystem.PersistentDataStorage.IsInitialized(sceneGUID), 
                     "Expected the subscene to have an initialized PersistentDataContainer");
                 
-                PersistentDataContainer container = persistentSceneSystem.PersistentDataStorage.GetLatestWrittenState(sceneGUID, out bool isInitial);
+                PersistentDataContainer container = persistentSceneSystem.PersistentDataStorage.GetReadContainerForLatestWriteIndex(sceneGUID, out bool isInitial);
                 
                 Assert.True(isInitial);
                 Assert.True(container.DataIdentifier == sceneGUID,
                     $"Expected the container to have the sceneGUID {sceneGUID} as data identifier, but it was {container.DataIdentifier}.");
                 Assert.True(container.DataLayoutCount == 6, 
                     $"LoadFakeSubScene creates 6 different types of persistable entities so we expect 6 different data layouts in the container, but it reports {container.DataLayoutCount}");
-                Assert.True(container.UniqueBufferTypeHandleCount == 3, 
-                    $"LoadFakeSubScene creates some entities with 3 types of persistable bufferdata, but the container reports {container.UniqueBufferTypeHandleCount}.");
-                Assert.True(container.UniqueComponentDataTypeHandleCount == 4, 
-                    $"LoadFakeSubScene creates some entities with 4 types of persistable componentdata, but the container reports {container.UniqueComponentDataTypeHandleCount}.");
 
                 int entitiesInScene = (i + 10) * 6;
-                int entitiesInContainer = container.CalculateTotalAmountEntities();
+                int entitiesInContainer = container.CalculateEntityCapacity();
                 Assert.True(entitiesInContainer == entitiesInScene, 
                     $"LoadFakeSubScene created {entitiesInScene} entities, but the container reports {entitiesInContainer}.");
             }
@@ -224,7 +222,7 @@ namespace DotsPersistency.Tests
             {
                 Unity.Entities.Hash128 sceneGUID = Hash128.Compute(i);
                 Assert.True(persistentSceneSystem.PersistentDataStorage.IsInitialized(sceneGUID), "Expected the subscene to have an initialized PersistentDataContainer");
-                PersistentDataContainer container = persistentSceneSystem.PersistentDataStorage.GetLatestWrittenState(sceneGUID, out bool isInitial);
+                PersistentDataContainer container = persistentSceneSystem.PersistentDataStorage.GetReadContainerForLatestWriteIndex(sceneGUID, out bool isInitial);
                 Assert.True(isInitial);
 
                 bool hasOnlyZero = true;
@@ -267,7 +265,7 @@ namespace DotsPersistency.Tests
                 Unity.Entities.Hash128 sceneGUID = Hash128.Compute(i);
                 Assert.True(persistentSceneSystem.PersistentDataStorage.IsInitialized(sceneGUID),
                     "Expected the subscene to have an initialized PersistentDataContainer");
-                PersistentDataContainer container = persistentSceneSystem.PersistentDataStorage.GetLatestWrittenState(sceneGUID, out bool isInitial);
+                PersistentDataContainer container = persistentSceneSystem.PersistentDataStorage.GetReadContainerForLatestWriteIndex(sceneGUID, out bool isInitial);
                 Assert.True(isInitial);
                 beginFramePersistencySystem.RequestApply(container);
             }
@@ -366,22 +364,6 @@ namespace DotsPersistency.Tests
                 SubSectionIndex = 0,
             });
             m_Manager.AddComponentData(sceneSectionEntity, new RequestPersistentSceneSectionLoaded());
-        }
-
-        private static PersistencySettings CreateTestSettings()
-        {
-            PersistencySettings settings = ScriptableObject.CreateInstance<PersistencySettings>();
-            settings.AddPersistableTypeInEditor(typeof(EcsTestData).FullName);
-            settings.AddPersistableTypeInEditor(typeof(EcsTestFloatData2).FullName);
-            settings.AddPersistableTypeInEditor(typeof(EcsTestData5).FullName);
-            settings.AddPersistableTypeInEditor(typeof(DynamicBufferData1).FullName);
-            settings.AddPersistableTypeInEditor(typeof(DynamicBufferData2).FullName);
-            settings.AddPersistableTypeInEditor(typeof(DynamicBufferData3).FullName);
-            settings.AddPersistableTypeInEditor(typeof(EmptyEcsTestData).FullName);
-            // Reset it so the new types are initialized
-            settings.OnDisable();
-            settings.OnEnable();
-            return settings;
         }
         
         private List<(PersistencyAuthoring, Entity)> CreateGameObjectsAndPrimaryEntities(int total, bool comp, bool tag, bool buffer)

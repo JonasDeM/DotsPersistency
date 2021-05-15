@@ -1,5 +1,5 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿// Author: Jonas De Maeseneer
+
 using System.Linq;
 using Unity.Entities;
 using Unity.Mathematics;
