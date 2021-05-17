@@ -195,14 +195,11 @@ namespace DotsPersistency
         
         public static PersistencySettings Get()
         {
+#if UNITY_EDITOR
+            PersistencySettings settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
+#else
             // This only actually loads it the first time, so multiple calls are totally fine
             PersistencySettings settings = Resources.Load<PersistencySettings>(RelativeFilePathNoExt);
-#if UNITY_EDITOR
-            // This covers an edge case with the conversion background process in editor
-            if (settings == null)
-            {
-                settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
-            }
 #endif
             return settings;
         }

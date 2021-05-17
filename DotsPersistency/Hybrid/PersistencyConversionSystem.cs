@@ -17,7 +17,7 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace DotsPersistency.Hybrid
 {
-    [ConverterVersion("Jonas", 20)]
+    [ConverterVersion("Jonas", 22)]
     [UpdateInGroup(typeof(GameObjectAfterConversionGroup))]
     public class PersistencyConversionSystem : GameObjectConversionSystem
     {
@@ -26,6 +26,7 @@ namespace DotsPersistency.Hybrid
             PersistencySettings settings = PersistencySettings.Get();
             if (settings == null)
             {
+                Debug.LogError($"No {nameof(PersistencySettings)} asset found!");
                 return;
             }
             
@@ -199,18 +200,19 @@ namespace DotsPersistency.Hybrid
         }
     }
     
-    [ConverterVersion("Jonas", 15)]
+    [ConverterVersion("Jonas", 18)]
     [UpdateInGroup(typeof(GameObjectDeclareReferencedObjectsGroup))]
     public class PersistencyConversionDependencySystem : GameObjectConversionSystem
     {
         protected override void OnUpdate()
         {
             var settings = PersistencySettings.Get();
-            DeclareReferencedAsset(settings);
             if (settings == null)
             {
+                Debug.LogError($"No {nameof(PersistencySettings)} asset found!");
                 return;
             }
+            DeclareReferencedAsset(settings);
             
             Entities.ForEach((PersistencyAuthoring persistencyAuthoring) =>
             {

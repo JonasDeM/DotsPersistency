@@ -22,12 +22,17 @@ namespace DotsPersistency
         public int TypeSize;
         [ReadOnly] 
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
-        [WriteOnly, NativeDisableContainerSafetyRestriction]
-        public NativeArray<byte> OutputData;
         
+        // Ideally we'd pass in a sub array but I was encountering some bugs when doing that
+        [WriteOnly, NativeDisableContainerSafetyRestriction]
+        public NativeArray<byte> RawContainerData;
+        public int SubArrayOffset;
+        public int SubArrayByteSize;
+
         public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
             var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
+            var outputDataSubArray = RawContainerData.GetSubArray(SubArrayOffset, SubArrayByteSize);
 
             if (batchInChunk.Has(ComponentTypeHandle))
             {
@@ -35,16 +40,16 @@ namespace DotsPersistency
                 {
                     var byteArray = batchInChunk.GetComponentDataAsByteArray(ComponentTypeHandle);
                     // This execute method also updates meta data
-                    Execute(OutputData, TypeSize, byteArray, persistenceStateArray);
+                    Execute(outputDataSubArray, TypeSize, byteArray, persistenceStateArray);
                 }
                 else
                 {
-                    UpdateMetaDataForComponent.Execute(OutputData, persistenceStateArray, 1);
+                    UpdateMetaDataForComponent.Execute(outputDataSubArray, TypeSize + PersistenceMetaData.SizeOfStruct, persistenceStateArray, 1);
                 }
             }
             else
             {
-                UpdateMetaDataForComponent.Execute(OutputData, persistenceStateArray, 0);
+                UpdateMetaDataForComponent.Execute(outputDataSubArray, TypeSize + PersistenceMetaData.SizeOfStruct, persistenceStateArray, 0);
             }
         }
 
@@ -83,27 +88,27 @@ namespace DotsPersistency
     
     public unsafe struct UpdateMetaDataForComponent
     {
-        public static void Execute(NativeArray<byte> outputData, NativeArray<PersistenceState> persistenceStateArray, int amountFound)
+        public static void Execute(NativeArray<byte> outputData, int stride, NativeArray<PersistenceState> persistenceStateArray, int amountFound)
         {
             for (int i = 0; i < persistenceStateArray.Length; i++)
             {
                 PersistenceState persistenceState = persistenceStateArray[i];
                 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                if (persistenceState.ArrayIndex * PersistenceMetaData.SizeOfStruct >= outputData.Length)
+                if (persistenceState.ArrayIndex * stride >= outputData.Length)
                 {
                     throw new IndexOutOfRangeException("UpdateMetaDataForTagComponent:: persistenceState.ArrayIndex seems to be out of range. Or the PersistenceMetaData.SizeOfStruct is wrong.");
                 }
 #endif
                 
-                var metaData = UnsafeUtility.ReadArrayElement<PersistenceMetaData>(outputData.GetUnsafeReadOnlyPtr(), persistenceState.ArrayIndex);
+                var metaData = UnsafeUtility.ReadArrayElementWithStride<PersistenceMetaData>(outputData.GetUnsafeReadOnlyPtr(), persistenceState.ArrayIndex, stride);
                 
                 // Diff
                 int diff = metaData.AmountFound - amountFound;
                 
                 // Write Meta Data
                 // 1 branch in PersistenceMetaData constructor
-                UnsafeUtility.WriteArrayElement(outputData.GetUnsafePtr(), persistenceState.ArrayIndex, new PersistenceMetaData(diff, (ushort)amountFound));
+                UnsafeUtility.WriteArrayElementWithStride(outputData.GetUnsafePtr(), persistenceState.ArrayIndex, stride, new PersistenceMetaData(diff, (ushort)amountFound));
             }
         }
     }
@@ -117,30 +122,35 @@ namespace DotsPersistency
         public int TypeSize;
         [ReadOnly] 
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
-        [ReadOnly]
-        public NativeArray<byte> InputData;
         public EntityCommandBuffer.ParallelWriter Ecb;
         [ReadOnly]
         public EntityTypeHandle EntityType;
+        
+        // Ideally we'd pass in a sub array but I was encountering some bugs when doing that
+        [ReadOnly]
+        public NativeArray<byte> RawContainerData;
+        public int SubArrayOffset;
+        public int SubArrayByteSize;
             
         public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
             var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
             var entityArray = batchInChunk.GetNativeArray(EntityType);
+            var inputDataSubArray = RawContainerData.GetSubArray(SubArrayOffset, SubArrayByteSize);
 
             if (batchInChunk.Has(ComponentTypeHandle))
             {
                 if (TypeSize > 0)
                 {
                     var byteArray = batchInChunk.GetComponentDataAsByteArray(ComponentTypeHandle);
-                    Execute(InputData, TypeSize, byteArray, persistenceStateArray);
+                    Execute(inputDataSubArray, TypeSize, byteArray, persistenceStateArray);
                 }
                 
-                RemoveComponent.Execute(InputData, ComponentType, TypeSize, entityArray, persistenceStateArray, Ecb, batchIndex);
+                RemoveComponent.Execute(inputDataSubArray, ComponentType, TypeSize, entityArray, persistenceStateArray, Ecb, batchIndex);
             }
             else
             {
-                AddMissingComponent.Execute(InputData, ComponentType, TypeSize, entityArray, persistenceStateArray, Ecb, batchIndex);
+                AddMissingComponent.Execute(inputDataSubArray, ComponentType, TypeSize, entityArray, persistenceStateArray, Ecb, batchIndex);
             }
         }
 
@@ -235,26 +245,32 @@ namespace DotsPersistency
     {
         [NativeDisableContainerSafetyRestriction, ReadOnly]
         public DynamicComponentTypeHandle BufferTypeHandle;
-        
+
+        public int ElementSize;
         public int MaxElements;
         [ReadOnly] 
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
-        [NativeDisableContainerSafetyRestriction]
-        public NativeArray<byte> OutputData;
+        
+        // Ideally we'd pass in a sub array but I was encountering some bugs when doing that
+        [WriteOnly, NativeDisableContainerSafetyRestriction]
+        public NativeArray<byte> RawContainerData;
+        public int SubArrayOffset;
+        public int SubArrayByteSize;
             
         public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
             var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
+            var outputDataSubArray = RawContainerData.GetSubArray(SubArrayOffset, SubArrayByteSize);
             
             if (batchInChunk.Has(BufferTypeHandle))
             {
                 var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(ref BufferTypeHandle);
                 // This execute method also updates meta data
-                Execute(OutputData, MaxElements, untypedBufferAccessor, persistenceStateArray);
+                Execute(outputDataSubArray, MaxElements, untypedBufferAccessor, persistenceStateArray);
             }
             else
             {
-                UpdateMetaDataForComponent.Execute(OutputData, persistenceStateArray, 0);
+                UpdateMetaDataForComponent.Execute(outputDataSubArray, ElementSize * MaxElements + PersistenceMetaData.SizeOfStruct, persistenceStateArray, 0);
             }
         }
 
@@ -303,16 +319,21 @@ namespace DotsPersistency
         public int MaxElements;
         [ReadOnly] 
         public ComponentTypeHandle<PersistenceState> PersistenceStateType;
-        [ReadOnly, NativeDisableParallelForRestriction]
-        public NativeArray<byte> InputData;
+        
+        // Ideally we'd pass in a sub array but I was encountering some bugs when doing that
+        [ReadOnly]
+        public NativeArray<byte> RawContainerData;
+        public int SubArrayOffset;
+        public int SubArrayByteSize;
 
         public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
         {
             Debug.Assert(batchInChunk.Has(BufferTypeHandle)); // Removing/Adding buffer data is not supported
             var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(ref BufferTypeHandle);
             var persistenceStateArray = batchInChunk.GetNativeArray(PersistenceStateType);
+            var inputDataSubArray = RawContainerData.GetSubArray(SubArrayOffset, SubArrayByteSize);
             
-            Execute(InputData, MaxElements, untypedBufferAccessor, persistenceStateArray);
+            Execute(inputDataSubArray, MaxElements, untypedBufferAccessor, persistenceStateArray);
         }
         
         public static void Execute(NativeArray<byte> inputData, int maxElements, UnsafeUntypedBufferAccessor untypedBufferAccessor,

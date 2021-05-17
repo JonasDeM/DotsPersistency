@@ -143,8 +143,15 @@ namespace DotsPersistency
                 
                 if (typeInfo.IsBuffer)
                 {
-                    var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(ref typeHandle);
-                    CopyBufferElementsToByteArray.Execute(outputData, typeInfo.MaxElements, untypedBufferAccessor, persistenceStateArray);
+                    if (batchInChunk.Has(typeHandle))
+                    {
+                        var untypedBufferAccessor = batchInChunk.GetUntypedBufferAccessor(ref typeHandle);
+                        CopyBufferElementsToByteArray.Execute(outputData, typeInfo.MaxElements, untypedBufferAccessor, persistenceStateArray);
+                    }
+                    else
+                    {
+                        UpdateMetaDataForComponent.Execute(outputData, stride, persistenceStateArray, 0);
+                    }
                 }
                 else
                 {
@@ -157,12 +164,12 @@ namespace DotsPersistency
                         }
                         else
                         {
-                            UpdateMetaDataForComponent.Execute(outputData, persistenceStateArray, 1);
+                            UpdateMetaDataForComponent.Execute(outputData, stride, persistenceStateArray, 1);
                         }
                     }
                     else
                     {
-                        UpdateMetaDataForComponent.Execute(outputData, persistenceStateArray, 0);
+                        UpdateMetaDataForComponent.Execute(outputData, stride, persistenceStateArray, 0);
                     }
                 }
             }

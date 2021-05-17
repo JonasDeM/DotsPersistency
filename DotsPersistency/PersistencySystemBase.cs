@@ -91,7 +91,6 @@ namespace DotsPersistency
             {
                 PersistencyArchetypeDataLayout dataLayout = dataContainer.GetDataLayoutAtIndex(persistenceArchetypeIndex);
                 ref BlobArray<PersistencyArchetypeDataLayout.TypeInfo> typeInfoArray = ref dataLayout.PersistedTypeInfoArrayRef.Value;
-                var dataForArchetype = dataContainer.GetSubArrayAtIndex(persistenceArchetypeIndex);
                 
                 PersistencyContainerTag containerTag = new PersistencyContainerTag {DataIdentifier = dataContainer.DataIdentifier};
                 PersistableTypeCombinationHash persistableTypeCombinationHash = new PersistableTypeCombinationHash { Value = dataLayout.PersistableTypeHandleCombinationHash};
@@ -108,9 +107,6 @@ namespace DotsPersistency
                     var query = PersistableEntitiesQuery;
                     query.SetSharedComponentFilter(containerTag, persistableTypeCombinationHash);
 
-                    // Grab containers
-                    var outputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
-                    
                     JobHandle jobHandle;
                     if (typeInfo.IsBuffer)
                     {
@@ -119,7 +115,10 @@ namespace DotsPersistency
                             BufferTypeHandle = GetDynamicComponentTypeHandle(runtimeType),
                             MaxElements = typeInfo.MaxElements,
                             PersistenceStateType = persistenceStateTypeHandle,
-                            OutputData = outputData
+                            RawContainerData = dataContainer.GetRawData(),
+                            SubArrayOffset = dataLayout.Offset + typeInfo.Offset,
+                            SubArrayByteSize = byteSize,
+                            ElementSize = typeInfo.ElementSize
                         }.Schedule(query, inputDeps);
                     }
                     else
@@ -129,7 +128,9 @@ namespace DotsPersistency
                             ComponentTypeHandle = GetDynamicComponentTypeHandle(runtimeType),
                             TypeSize = typeInfo.ElementSize,
                             PersistenceStateType = persistenceStateTypeHandle,
-                            OutputData = outputData
+                            RawContainerData = dataContainer.GetRawData(),
+                            SubArrayOffset = dataLayout.Offset + typeInfo.Offset,
+                            SubArrayByteSize = byteSize
                         }.Schedule(query, inputDeps);
                     }
                     
@@ -167,9 +168,6 @@ namespace DotsPersistency
                     var query = PersistableEntitiesQuery;
                     query.SetSharedComponentFilter(containerTag, persistableTypeCombinationHash);
                     
-                    // Grab read-only containers
-                    var inputData = dataForArchetype.GetSubArray(typeInfo.Offset, byteSize);
-                    
                     JobHandle jobHandle;
                     if (typeInfo.IsBuffer)
                     {
@@ -178,7 +176,9 @@ namespace DotsPersistency
                             BufferTypeHandle = GetDynamicComponentTypeHandle(runtimeType),
                             MaxElements = typeInfo.MaxElements,
                             PersistenceStateType = persistenceStateTypeHandle,
-                            InputData = inputData
+                            RawContainerData = dataContainer.GetRawData(),
+                            SubArrayOffset = dataLayout.Offset + typeInfo.Offset,
+                            SubArrayByteSize = byteSize
                         }.Schedule(query, inputDeps);
                     }
                     else
@@ -190,7 +190,9 @@ namespace DotsPersistency
                             TypeSize = typeInfo.ElementSize,
                             PersistenceStateType = persistenceStateTypeHandle,
                             EntityType = entityTypeHandle,
-                            InputData = inputData,
+                            RawContainerData = dataContainer.GetRawData(),
+                            SubArrayOffset = dataLayout.Offset + typeInfo.Offset,
+                            SubArrayByteSize = byteSize,
                             Ecb = ecbSystem.CreateCommandBuffer().AsParallelWriter()
                         }.Schedule(query, inputDeps);
                     }

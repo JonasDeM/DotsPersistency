@@ -48,7 +48,9 @@ namespace DotsPersistency.Tests
                 ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                OutputData = array1IntData
+                RawContainerData = array1IntData,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array1IntData.Length
             }.Schedule(query1);
             
             var job2 =new CopyComponentDataToByteArray()
@@ -56,7 +58,9 @@ namespace DotsPersistency.Tests
                 ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>() ,
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                OutputData = array2FloatData
+                RawContainerData = array2FloatData,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array2FloatData.Length
             }.Schedule(query2);
             
             var job3 =new CopyComponentDataToByteArray()
@@ -64,7 +68,9 @@ namespace DotsPersistency.Tests
                 ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
                 TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                OutputData = array5IntData
+                RawContainerData = array5IntData,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array5IntData.Length
             }.Schedule(query3);
             
             JobHandle.CombineDependencies(job1, job2, job3).Complete();
@@ -215,7 +221,9 @@ namespace DotsPersistency.Tests
                     ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData)),
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData>(),
                     PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                    InputData = array1IntData,
+                    RawContainerData = array1IntData,
+                    SubArrayOffset = 0,
+                    SubArrayByteSize = array1IntData.Length,
                     ComponentType = typeof(EcsPersistingTestData),
                     EntityType = m_Manager.GetEntityTypeHandle(),
                     Ecb = cmds.AsParallelWriter()
@@ -230,7 +238,9 @@ namespace DotsPersistency.Tests
                     ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingFloatTestData2)),
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingFloatTestData2>(),
                     PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                    InputData = array2FloatData,
+                    RawContainerData = array2FloatData,
+                    SubArrayOffset = 0,
+                    SubArrayByteSize = array2FloatData.Length,
                     ComponentType = typeof(EcsPersistingFloatTestData2),
                     EntityType = m_Manager.GetEntityTypeHandle(),
                     Ecb = cmds.AsParallelWriter()
@@ -245,7 +255,9 @@ namespace DotsPersistency.Tests
                     ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EcsPersistingTestData5)),
                     TypeSize = UnsafeUtility.SizeOf<EcsPersistingTestData5>(),
                     PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                    InputData = array5IntData,
+                    RawContainerData = array5IntData,
+                    SubArrayOffset = 0,
+                    SubArrayByteSize = array5IntData.Length,
                     ComponentType = typeof(EcsPersistingTestData5),
                     EntityType = m_Manager.GetEntityTypeHandle(),
                     Ecb = cmds.AsParallelWriter()
@@ -325,7 +337,9 @@ namespace DotsPersistency.Tests
             var readJob = new CopyComponentDataToByteArray()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                OutputData = data,
+                RawContainerData = data,
+                SubArrayOffset = 0,
+                SubArrayByteSize = data.Length,
                 TypeSize = 0,
                 ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EmptyEcsPersistingTestData))
             }.Schedule(query);
@@ -341,7 +355,9 @@ namespace DotsPersistency.Tests
                     ComponentType = typeof(EmptyEcsPersistingTestData),
                     TypeSize = TypeManager.GetTypeInfo<EmptyEcsPersistingTestData>().ElementSize,
                     PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                    InputData = data,
+                    RawContainerData = data,
+                    SubArrayOffset = 0,
+                    SubArrayByteSize = data.Length,
                     EntityType = m_Manager.GetEntityTypeHandle(),
                     Ecb = cmds.AsParallelWriter(),
                     ComponentTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(EmptyEcsPersistingTestData))

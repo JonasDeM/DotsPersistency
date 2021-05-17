@@ -11,6 +11,12 @@ namespace DotsPersistency
     public partial class PersistencySettings
     {
 #if UNITY_EDITOR
+        public void RefreshInEditor()
+        {
+            OnDisable();
+            OnEnable();
+        }
+        
         public static void CreateInEditor()
         {
             var settings = UnityEditor.AssetDatabase.LoadAssetAtPath<PersistencySettings>(AssetPath);
@@ -49,6 +55,7 @@ namespace DotsPersistency
             _allPersistableTypeInfos.Add(persistableTypeInfo);
             _allPersistableTypeInfos.Sort((info1, info2) => string.CompareOrdinal(info1.FullTypeName, info2.FullTypeName));
             UnityEditor.EditorUtility.SetDirty(this);
+            RefreshInEditor();
             return true;
         }
 
@@ -78,6 +85,7 @@ namespace DotsPersistency
         {
             _allPersistableTypeInfos.Clear();
             UnityEditor.EditorUtility.SetDirty(this);
+            RefreshInEditor();
         }
 
         public string GetPrettyNameInEditor(string fullTypeName)

@@ -48,25 +48,34 @@ namespace DotsPersistency.Tests
             var job1 = new CopyBufferElementsToByteArray()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                OutputData = array1Data,
+                RawContainerData = array1Data,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array1Data.Length,
                 BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData1)),
-                MaxElements = maxElements
+                MaxElements = maxElements,
+                ElementSize = UnsafeUtility.SizeOf<PersistentDynamicBufferData1>()
             }.Schedule(query1);
             
             var job2 = new CopyBufferElementsToByteArray()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                OutputData = array2Data,
+                RawContainerData = array2Data,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array2Data.Length,
                 BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData2)),
-                MaxElements = maxElements
+                MaxElements = maxElements,
+                ElementSize = UnsafeUtility.SizeOf<PersistentDynamicBufferData2>()
             }.Schedule(query2);
             
             var job3 = new CopyBufferElementsToByteArray()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                OutputData = array3Data,
+                RawContainerData = array3Data,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array3Data.Length,
                 BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData3)),
-                MaxElements = maxElements
+                MaxElements = maxElements,
+                ElementSize = UnsafeUtility.SizeOf<PersistentDynamicBufferData3>()
             }.Schedule(query3);
             
             JobHandle.CombineDependencies(job1, job2, job3).Complete();
@@ -222,7 +231,9 @@ namespace DotsPersistency.Tests
             var job1 = new CopyByteArrayToBufferElements()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                InputData = array1Data,
+                RawContainerData = array1Data,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array1Data.Length,
                 BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData1)),
                 MaxElements = maxElements
             }.Schedule(query1);
@@ -230,7 +241,9 @@ namespace DotsPersistency.Tests
             var job2 = new CopyByteArrayToBufferElements()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                InputData = array2Data,
+                RawContainerData = array2Data,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array2Data.Length,
                 BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData2)),
                 MaxElements = maxElements
             }.Schedule(query2);
@@ -238,7 +251,9 @@ namespace DotsPersistency.Tests
             var job3 = new CopyByteArrayToBufferElements()
             {
                 PersistenceStateType = m_Manager.GetComponentTypeHandle<PersistenceState>(true),
-                InputData = array3Data,
+                RawContainerData = array3Data,
+                SubArrayOffset = 0,
+                SubArrayByteSize = array3Data.Length,
                 BufferTypeHandle = m_Manager.GetDynamicComponentTypeHandle(typeof(PersistentDynamicBufferData3)),
                 MaxElements = maxElements
             }.Schedule(query3);
